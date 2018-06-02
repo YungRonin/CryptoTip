@@ -1,0 +1,3 @@
+include ':mobile', ':wear', ':web3j'
+//project(':web3j').projectDir = new File('../Tipper/web3j/')
+//, ':ganilib-core'
