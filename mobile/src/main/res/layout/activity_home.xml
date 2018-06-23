@@ -4,36 +4,40 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:id="@+id/main"
-    tools:context="app.cryptotip.cryptotip.app.TipperHome">
+    tools:context="app.cryptotip.cryptotip.app.Home">
 
-    <TextView
-        android:layout_width="wrap_content"
+    <android.support.v7.widget.Toolbar
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="CryptoTip"
-        android:id="@+id/title"
+        android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true"/>
+        android:id="@+id/toolbar"/>
 
     <ImageView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/public_key_qr_code"
-        android:layout_alignParentTop="true"/>
+        android:layout_below="@id/toolbar"/>
 
     <android.support.v7.widget.AppCompatTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_horizontal"
         android:id="@+id/public_key_text_view"
-        android:layout_below="@+id/public_key_qr_code"
-        android:text="some test text"/>
+        android:layout_below="@+id/public_key_qr_code" />
 
     <android.support.v7.widget.AppCompatTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_horizontal"
-        android:id="@+id/balance_text_view"
+        android:id="@+id/eth_balance_text_view"
         android:layout_below="@+id/public_key_text_view"/>
 
+    <android.support.v7.widget.AppCompatTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:id="@+id/fiat_balance_text_view"
+        android:layout_below="@+id/eth_balance_text_view"/>
 
 </RelativeLayout>

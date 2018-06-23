@@ -27,8 +27,10 @@ import org.web3j.crypto.WalletUtils;
 import java.io.IOException;
 import java.math.BigInteger;
 
-import app.cryptotip.cryptotip.app.components.WalletPath;
+import app.cryptotip.cryptotip.app.database.DbMap;
 import app.cryptotip.cryptotip.app.view.MyScreenView;
+
+import static app.cryptotip.cryptotip.app.Home.WALLET_FILE_PATH;
 
 public class TransactionListActivity extends GActivity {
 
@@ -47,7 +49,7 @@ public class TransactionListActivity extends GActivity {
 
         String pubKey;
         String WalletFilePath;
-        WalletFilePath = new WalletPath().getPath(this);
+        WalletFilePath = DbMap.get(WALLET_FILE_PATH);
         if (WalletFilePath != null) {
             try {
                 Credentials creds = WalletUtils.loadCredentials("atestpasswordhere", WalletFilePath);

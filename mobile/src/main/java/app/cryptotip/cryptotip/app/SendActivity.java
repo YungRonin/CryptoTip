@@ -1,27 +1,18 @@
 package app.cryptotip.cryptotip.app;
 
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.LinearLayout;
+import android.text.InputType;
+import android.widget.EditText;
 import android.widget.Toast;
 
-import com.gani.lib.http.GRestCallback;
-import com.gani.lib.http.GRestResponse;
-import com.gani.lib.http.HttpAsyncGet;
-import com.gani.lib.http.HttpHook;
 import com.gani.lib.logging.GLog;
 import com.gani.lib.screen.GActivity;
 import com.gani.lib.ui.Ui;
 
-import org.json.JSONException;
 import org.web3j.crypto.CipherException;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletUtils;
@@ -37,46 +28,15 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.concurrent.ExecutionException;
 
-import app.cryptotip.cryptotip.app.components.QrScanner;
-import app.cryptotip.cryptotip.app.components.WalletPath;
-import app.cryptotip.cryptotip.app.http.MyImmutableParams;
-import app.cryptotip.cryptotip.app.json.MyJsonObject;
-import app.cryptotip.cryptotip.app.view.MyScreenView;
+import app.cryptotip.cryptotip.app.database.DbMap;
+
+import static app.cryptotip.cryptotip.app.Home.WALLET_FILE_PATH;
 
 public class SendActivity extends GActivity {
-    private QrScanner scanner;
-    private LinearLayout layout;
-
-    public Intent intent(Context context) {
-        return new Intent(context, this.getClass());
-    }
 
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreateForScreen(savedInstanceState, new MyScreenView(this));
-        addContentView(View.inflate(this, R.layout.activity_send_layout, null), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        layout = findViewById(R.id.qr_scanner_layout);
-    }
 
-    @Override
-    public void onPostCreate(@Nullable Bundle savedinstaceState) {
-        super.onPostCreate(savedinstaceState);
-        scanner = new QrScanner(this, new WalletPath().getPath(this));
-        scanner.init();
-        layout.addView(scanner.getView());
 
-        new HttpAsyncGet("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=AUD", MyImmutableParams.EMPTY, HttpHook.DUMMY, new GRestCallback(this, this.getCircularProgressIndicator()) {
-            @Override
-            protected void onRestResponse(GRestResponse r) throws JSONException {
-                super.onRestResponse(r);
-                GLog.e(getClass(), "cryptocompare api response == \n" + r);
-                MyJsonObject object = new MyJsonObject(r.getJsonString());
-                String price = object.getString("AUD");
-                scanner.setEthPrice(Double.valueOf(price));
-            }
-        }).execute();
-    }
 
     private void handleTransactionReceipt(final TransactionReceipt transactionReceipt){
         Ui.run(new Runnable() {
@@ -100,33 +60,27 @@ public class SendActivity extends GActivity {
     }
 
 
-    public String generateERC681Url(String address, Long chainId, String value){
+    private AlertDialog createTransactionAmoutDialog(final String address){
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Trasaction Amount");
+        final EditText inputField = new EditText(this);
+        inputField.setHint("enter tip amount");
+        inputField.setInputType(InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        builder.setView(inputField);
+        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                new AsyncSendTask(SendActivity.this).execute(address, inputField.getText().toString(), DbMap.get(WALLET_FILE_PATH));
+            }
+        });
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
 
-        String url = "ethereum:";
-
-        if (address != null) {
-            url = url.concat(address);
-            //url = url.concat("?");
-        }
-
-//        if (chainId != null && chainId != 1L) {
-//            url = url.concat(chainId);
-//        }
-
-        url = url.concat("?amount=" + value);
-
-//        url = url.concat("?gas=45&");
-//
-//        if(value != null){
-//            url = url.concat("?value="+value);
-//        }
-
-
-
-        final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        this.startActivity(intent);
-        GLog.e(getClass(), "ehter url === \n" + url);
-        return url;
+        return builder.create();
     }
 
     public static class AsyncSendTask extends AsyncTask<String, String, Exception> {
@@ -192,5 +146,34 @@ public class SendActivity extends GActivity {
             }
             return null;
         }
+    }
+
+    public String generateERC681Url(String address, Long chainId, String value){
+
+        String url = "ethereum:";
+
+        if (address != null) {
+            url = url.concat(address);
+            //url = url.concat("?");
+        }
+
+//        if (chainId != null && chainId != 1L) {
+//            url = url.concat(chainId);
+//        }
+
+        url = url.concat("?amount=" + value);
+
+//        url = url.concat("?gas=45&");
+//
+//        if(value != null){
+//            url = url.concat("?value="+value);
+//        }
+
+
+
+        final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        this.startActivity(intent);
+        GLog.e(getClass(), "ehter url === \n" + url);
+        return url;
     }
 }
