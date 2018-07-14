@@ -69,6 +69,7 @@ public class SettingsActivity extends GActivity {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
                                     DbMap.put(SELECTED_CURRENCY, selectedCurrency);
+                                    SettingsActivity.this.finish();
                                 }
                             })
                             .setSingleChoiceItems(currencyCodes, currencyCodes.length, new DialogInterface.OnClickListener() {

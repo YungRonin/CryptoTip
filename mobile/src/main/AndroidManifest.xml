@@ -26,6 +26,7 @@
         <activity android:name=".ReceiverAddressActivity"/>
         <activity android:name=".TransactionListActivity"/>
         <activity android:name=".SettingsActivity"/>
+        <activity android:name=".SendActivity"/>
     </application>
 
 </manifest>

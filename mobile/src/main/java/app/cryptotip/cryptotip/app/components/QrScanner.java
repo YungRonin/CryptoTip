@@ -20,6 +20,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.gani.lib.ui.Ui;
 import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.barcode.Barcode;
@@ -68,7 +69,12 @@ public class QrScanner {
                 final SparseArray<Barcode> barcodes = detections.getDetectedItems();
 
                 if (barcodes.size() != 0) {
-                    ((EditText)layout.findViewById(R.id.address_input_field)).setText(barcodes.valueAt(0).displayValue, TextView.BufferType.NORMAL);
+                    Ui.run(new Runnable() {
+                        @Override
+                        public void run() {
+                            ((EditText)layout.findViewById(R.id.address_input_field)).setText(barcodes.valueAt(0).displayValue, TextView.BufferType.NORMAL);
+                        }
+                    });
                     cameraSource.stop();
                 }
             }

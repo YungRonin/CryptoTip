@@ -64,6 +64,7 @@ public class Home extends AppCompatActivity {
     private String ethBalance;
     private static final int CURRENCY_CHANGE = 555;
     public static final String WALLET_FILE_PATH = "walletFilePath";
+    public static final String FIAT_PRICE = "fiatPrice";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -166,9 +167,8 @@ public class Home extends AppCompatActivity {
         }
 
         currency = DbMap.get(SELECTED_CURRENCY);
-        Log.e("currency", "equlas to : " + currency);
         if(currency == null){
-            currency = "AUD";
+            currency = "USD";
         }
 
 
@@ -190,6 +190,7 @@ public class Home extends AppCompatActivity {
                 GLog.e(getClass(), "cryptocompare api response == \n" + r);
                 MyJsonObject object = new MyJsonObject(r.getJsonString());
                 String price = object.getString(currency);
+                DbMap.put(FIAT_PRICE, price);
                 String text = currency + " : " + price + "\nvalue : " + String.valueOf(Double.valueOf(ethBalance) * Double.valueOf(price));
                 fiatBalanceTextView.setText(text);
             }
