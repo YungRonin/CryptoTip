@@ -2,29 +2,25 @@ package app.cryptotip.cryptotip.app.components;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Point;
 import android.hardware.Camera;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.text.InputType;
 import android.util.Log;
 import android.util.SparseArray;
-import android.view.LayoutInflater;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.gani.lib.ui.Ui;
 import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.barcode.Barcode;
@@ -33,7 +29,7 @@ import com.google.android.gms.vision.barcode.BarcodeDetector;
 import java.io.IOException;
 
 import app.cryptotip.cryptotip.app.R;
-import app.cryptotip.cryptotip.app.SendActivity;
+import app.cryptotip.cryptotip.app.ReceiverAddressActivity;
 
 
 public class QrScanner {
@@ -41,23 +37,17 @@ public class QrScanner {
     private CameraSource cameraSource;
     final private SurfaceView qrView;
     private LinearLayout surfaceViewLayout;
-    private TextView tView;
-    private android.widget.Switch flashSwitch;
-    private SendActivity context;
+    private ReceiverAddressActivity context;
     private LinearLayout layout;
-    private Double ethPrice;
-    private String walletPath;
 
-    public QrScanner(SendActivity context, String walletPath) {
+
+    public QrScanner(ReceiverAddressActivity context, LinearLayout layout) {
         this.context = context;
-        this.walletPath = walletPath;
-        layout = (LinearLayout) LayoutInflater.from(context).inflate(R.layout.qr_scanner_layout, null);
+        this.layout = layout;
         qrView = layout.findViewById(R.id.qr_view);
         surfaceViewLayout = layout.findViewById(R.id.surface_view_layout);
-        tView = layout.findViewById(R.id.qr_text_view);
-        tView.setText("result shown here");
-        flashSwitch = layout.findViewById(R.id.flash_switch);
-    }
+
+   }
 
     public void init(){
         surfaceViewLayout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, windowWidthPx()));
@@ -67,74 +57,6 @@ public class QrScanner {
                 .build();
 
         cameraSource = TCameraSource.getInstance().getCameraSource(context, detector);
-
-
-
-        flashSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-
-            @Override
-            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
-                if(flashSwitch.isChecked()){
-
-
-                    java.lang.reflect.Field[] declaredFields = null;
-                    try {
-                        declaredFields = TCameraSource.class.getDeclaredFields();
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-
-                    // TODO: refactor below
-                    if(declaredFields != null) {
-                        for (java.lang.reflect.Field field : declaredFields) {
-                            if (field.getType() == Camera.class) {
-                                field.setAccessible(true);
-                                try {
-                                    Camera camera = (Camera) field.get(cameraSource);
-                                    if (camera != null) {
-                                        Camera.Parameters params = camera.getParameters();
-                                        params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
-                                        params.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
-                                        camera.setParameters(params);
-                                    }
-                                } catch (IllegalAccessException e) {
-                                    e.printStackTrace();
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-                else{
-                    java.lang.reflect.Field[] declaredFields = null;
-                    try {
-                        declaredFields = TCameraSource.class.getDeclaredFields();
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-
-                    if(declaredFields != null) {
-                        for (java.lang.reflect.Field field : declaredFields) {
-                            if (field.getType() == Camera.class) {
-                                field.setAccessible(true);
-                                try {
-                                    Camera camera = (Camera) field.get(cameraSource);
-                                    if (camera != null) {
-                                        Camera.Parameters params = camera.getParameters();
-                                        params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
-                                        params.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
-                                        camera.setParameters(params);
-                                    }
-                                } catch (IllegalAccessException e) {
-                                    e.printStackTrace();
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        });
 
         detector.setProcessor(new Detector.Processor<Barcode>() {
             @Override
@@ -147,16 +69,13 @@ public class QrScanner {
                 final SparseArray<Barcode> barcodes = detections.getDetectedItems();
 
                 if (barcodes.size() != 0) {
-                    tView.post(new Runnable() {    // Use the post method of the TextView
+                    Ui.run(new Runnable() {
+                        @Override
                         public void run() {
-                            tView.setText(    // Update the TextView
-                                    barcodes.valueAt(0).displayValue
-                            );
-
-                            createTransactionAmoutDialog(barcodes.valueAt(0).displayValue).show();
-                            cameraSource.stop();
-                         }
+                            ((EditText)layout.findViewById(R.id.address_input_field)).setText(barcodes.valueAt(0).displayValue, TextView.BufferType.NORMAL);
+                        }
                     });
+                    cameraSource.stop();
                 }
             }
         });
@@ -233,37 +152,6 @@ public class QrScanner {
                 cameraSource = null;
             }
         });
-    }
-
-    private AlertDialog createTransactionAmoutDialog(final String address){
-        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle("Trasaction Amount");
-        final EditText inputField = new EditText(context);
-        inputField.setHint("enter tip amount");
-        inputField.setInputType(InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        builder.setView(inputField);
-        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                new SendActivity.AsyncSendTask(context).execute(address, inputField.getText().toString(), walletPath);
-            }
-        });
-        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-            }
-        });
-
-        return builder.create();
-    }
-
-    public View getView(){
-        return layout;
-    }
-
-    public void setEthPrice(Double price){
-        ethPrice = price;
     }
 
     private Point windowRawSize() {
