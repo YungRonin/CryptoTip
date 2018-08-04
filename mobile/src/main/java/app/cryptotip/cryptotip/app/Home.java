@@ -16,6 +16,7 @@ import com.gani.lib.http.GRestCallback;
 import com.gani.lib.http.GRestResponse;
 import com.gani.lib.http.HttpAsyncGet;
 import com.gani.lib.http.HttpHook;
+import com.gani.lib.logging.GLog;
 import com.gani.lib.ui.ProgressIndicator;
 import com.gani.lib.ui.view.GTextView;
 import com.google.zxing.BarcodeFormat;
@@ -28,12 +29,18 @@ import com.mikepenz.materialdrawer.model.PrimaryDrawerItem;
 import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
 
 import org.json.JSONException;
+import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.TypeReference;
+import org.web3j.abi.datatypes.Address;
+import org.web3j.abi.datatypes.Function;
+import org.web3j.abi.datatypes.Type;
 import org.web3j.crypto.CipherException;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.Web3jFactory;
 import org.web3j.protocol.core.DefaultBlockParameterName;
+import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthGetBalance;
 import org.web3j.protocol.http.HttpService;
 
@@ -47,6 +54,8 @@ import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -57,24 +66,26 @@ import app.cryptotip.cryptotip.app.transaction.TransactionListActivity;
 
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.WHITE;
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CURRENCY;
+import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CRYPTO_CURRENCY;
+import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_FIAT_CURRENCY;
 
 public class Home extends AppCompatActivity {
     private String pubKey;
     private String walletFilePath;
-    private String currency;
-    private String ethBalance;
+    private String fiatCurrency;
+    private String cryptoCurrency;
+    private String cryptoBalance;
     private static final int CURRENCY_CHANGE = 555;
     public static final String WALLET_FILE_PATH = "walletFilePath";
     public static final String FIAT_PRICE = "fiatPrice";
     private GTextView fiatBalanceTextView;
-    private GTextView ethBalanceTextView;
+    private GTextView cryptoBalanceTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
-        ethBalance = "0";
+        cryptoBalance = "0";
 
         walletFilePath = DbMap.get(WALLET_FILE_PATH);
         if(walletFilePath == null) {
@@ -124,7 +135,7 @@ public class Home extends AppCompatActivity {
         TextView pubKeyTview = findViewById(R.id.public_key_text_view);
         pubKeyTview.setTextIsSelectable(true);
         ImageView pubKeyimageView = findViewById(R.id.public_key_qr_code);
-        ethBalanceTextView = findViewById(R.id.eth_balance_text_view);
+        cryptoBalanceTextView = findViewById(R.id.eth_balance_text_view);
         fiatBalanceTextView = findViewById(R.id.fiat_balance_text_view);
 
         pubKeyTview.setText(getStringFromFile(walletFilePath));
@@ -148,9 +159,14 @@ public class Home extends AppCompatActivity {
             }
         }
 
-        currency = DbMap.get(SELECTED_CURRENCY);
-        if(currency == null){
-            currency = "USD";
+        fiatCurrency = DbMap.get(SELECTED_FIAT_CURRENCY);
+        if(fiatCurrency == null){
+            fiatCurrency = "USD";
+        }
+
+        cryptoCurrency = DbMap.get(SELECTED_CRYPTO_CURRENCY);
+        if(cryptoCurrency == null){
+            cryptoCurrency = "ETH";
         }
 
         refresh();
@@ -179,18 +195,49 @@ public class Home extends AppCompatActivity {
 
         }
 
-        ethBalanceTextView.setTextIsSelectable(true);
-        if(ethGBalance != null) {
-            BigInteger bigIntBal = ethGBalance.getBalance();
-            ethBalance =  new BalanceHelper().convertWeiToEth(bigIntBal);
-            ethBalanceTextView.setText("Eth Balance : " + ethBalance);
+        cryptoBalanceTextView.setTextIsSelectable(true);
+        if(cryptoCurrency.contentEquals("ETH")) {
+            if (ethGBalance != null) {
+                BigInteger bigIntBal = ethGBalance.getBalance();
+                cryptoBalance = new BalanceHelper().convertWeiToEth(bigIntBal);
+                cryptoBalanceTextView.setText(cryptoCurrency.concat(" Balance : " + cryptoBalance));
+            } else {
+                cryptoBalanceTextView.setText("failed to retrieve balance");
+            }
         }
         else{
-            ethBalanceTextView.setText("failed to retrieve balance");
+            String contractAddress = getContractAddress(cryptoCurrency);
+            if(contractAddress != null) {
+                try {
+
+                    Function function = new Function(
+                            "balanceOf", Arrays.<Type>asList(new Address(pubKey)), new ArrayList<TypeReference<?>>()); //Uint256
+                    String encodedFunction = FunctionEncoder.encode(function);
+                    org.web3j.protocol.core.methods.response.EthCall response = weby.ethCall(
+                            Transaction.createEthCallTransaction(pubKey, contractAddress, encodedFunction), DefaultBlockParameterName.LATEST)
+                            .sendAsync().get();
+
+                    Address result = new Address(response.getResult());
+
+                    cryptoBalance = new BalanceHelper().convertWeiToEth(result.toUint160().getValue());
+                    cryptoBalanceTextView.setText(cryptoCurrency.concat(" Balance : " + cryptoBalance));
+
+                } catch (InterruptedException e) {
+                    cryptoBalanceTextView.setText("failed to retrieve balance");
+                    GLog.e(getClass(), "interupted " + e);
+                } catch (ExecutionException e) {
+                    cryptoBalanceTextView.setText("failed to retrieve balance");
+                    GLog.e(getClass(), "execution excptional " + e);
+                }
+            }
+            else{
+                cryptoBalanceTextView.setText("failed to retrieve balance");
+            }
         }
 
 
-        new HttpAsyncGet("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=" + currency, MyImmutableParams.EMPTY, HttpHook.DUMMY, new GRestCallback(this, new ProgressIndicator() {
+        //todo support erc20 prices
+        new HttpAsyncGet("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=" + fiatCurrency, MyImmutableParams.EMPTY, HttpHook.DUMMY, new GRestCallback(this, new ProgressIndicator() {
             @Override
             public void showProgress() {
                 // TODO: 11/06/18
@@ -205,9 +252,9 @@ public class Home extends AppCompatActivity {
             protected void onRestResponse(GRestResponse r) throws JSONException {
                 super.onRestResponse(r);
                 MyJsonObject object = new MyJsonObject(r.getJsonString());
-                String price = object.getString(currency);
+                String price = object.getString(fiatCurrency);
                 DbMap.put(FIAT_PRICE, price);
-                String text = currency + " : " + price + "\nvalue : " + String.valueOf(Double.valueOf(ethBalance) * Double.valueOf(price));
+                String text = fiatCurrency + " : " + price + "\nvalue : " + String.valueOf(Double.valueOf(cryptoBalance) * Double.valueOf(price));
                 fiatBalanceTextView.setText(text);
             }
         }).execute();
@@ -288,6 +335,15 @@ public class Home extends AppCompatActivity {
             Log.e("fail", "exception " + e);
         }
         return null;
+    }
+
+    public String getContractAddress(String tokenID){
+        switch (tokenID){
+            case "ALPH" : return "0xfb0fBFd118D25bBDB82fF6bFe9b08f3Ae9B68a64";
+            case "BETA" : return "0xadADEef132DbE73cF951DD77C4cFcF87D682F543";
+            case "OMEG" : return "0x9f2B11C377a6bBA0D4dFaC81d7A4768955AC5900";
+            default: return null;
+        }
     }
 
     private BigInteger generateBigInt(){

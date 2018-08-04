@@ -15,7 +15,7 @@ import app.cryptotip.cryptotip.app.R;
 import app.cryptotip.cryptotip.app.database.DbMap;
 import app.cryptotip.cryptotip.app.transaction.Transaction;
 
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CURRENCY;
+import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_FIAT_CURRENCY;
 
 public class TransactionHolder extends RecyclerView.ViewHolder{
 
@@ -50,6 +50,6 @@ public class TransactionHolder extends RecyclerView.ViewHolder{
         toView.text("To: ".concat(transaction.getTo())).bold();
         ethValueView.text("ETH: ".concat(transaction.getEthValue())).bold();
         transactionHashView.text("TxHash: ".concat(transaction.getTransactionHash())).bold();
-        fiatValueView.text(DbMap.get(SELECTED_CURRENCY).concat(": " + transaction.getFiatValue())).bold();
+        fiatValueView.text(DbMap.get(SELECTED_FIAT_CURRENCY).concat(": " + transaction.getFiatValue())).bold();
     }
 }

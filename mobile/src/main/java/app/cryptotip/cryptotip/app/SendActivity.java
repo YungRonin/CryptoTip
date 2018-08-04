@@ -45,7 +45,7 @@ import app.cryptotip.cryptotip.app.view.MyScreenView;
 import static app.cryptotip.cryptotip.app.Home.FIAT_PRICE;
 import static app.cryptotip.cryptotip.app.Home.WALLET_FILE_PATH;
 import static app.cryptotip.cryptotip.app.ReceiverAddressActivity.RECIEVER_ADDRESS;
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CURRENCY;
+import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_FIAT_CURRENCY;
 
 public class SendActivity extends GActivity {
     private LinearLayout layout;
@@ -85,7 +85,7 @@ public class SendActivity extends GActivity {
         addressTextView.setText(getIntent().getExtras().getString(RECIEVER_ADDRESS));
         sendButton = layout.findViewById(R.id.send_transaction_button);
 
-        final String currency = DbMap.get(SELECTED_CURRENCY);
+        final String currency = DbMap.get(SELECTED_FIAT_CURRENCY);
         final String price = DbMap.get(FIAT_PRICE);
         priceTextView.setText("1 ETH = ".concat(price + " " + currency));
 
