@@ -12,20 +12,16 @@ import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
-import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.gani.lib.logging.GLog;
 import com.gani.lib.screen.GActivity;
 import com.gani.lib.ui.Ui;
-import com.gani.lib.ui.view.GEditText;
 import com.gani.lib.ui.view.GTextView;
 
 import org.web3j.crypto.CipherException;
@@ -93,8 +89,6 @@ public class SendActivity extends GActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                GLog.e(getClass(), "should be false and greater than 0 " + fiatSelected + " " + count);
-
                 if(!fiatSelected && count > 0) {
                     Double fiatValue = Double.valueOf(s.toString());
                     Double fiatPrice = Double.valueOf(price);
