@@ -8,16 +8,24 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.design.widget.TextInputEditText;
+import android.support.design.widget.TextInputLayout;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.gani.lib.logging.GLog;
 import com.gani.lib.screen.GActivity;
 import com.gani.lib.ui.Ui;
+import com.gani.lib.ui.view.GEditText;
 import com.gani.lib.ui.view.GTextView;
 
 import org.web3j.crypto.CipherException;
@@ -47,8 +55,11 @@ public class SendActivity extends GActivity {
     private LinearLayout layout;
     private GTextView addressTextView;
     private GTextView priceTextView;
+    private TextInputLayout ethInputLayout;
     private TextInputEditText ethAmountEditText;
+    private TextInputLayout fiatInputLayout;
     private TextInputEditText fiatAmountEditText;
+    private boolean fiatSelected;
 
     public static Intent intent(Context context) {
         return new Intent(context, SendActivity.class);
@@ -58,11 +69,14 @@ public class SendActivity extends GActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreateForScreen(savedInstanceState, new MyScreenView(this));
+        fiatSelected = false;
         layout = (LinearLayout) View.inflate(this, R.layout.send_layout, null);
         addContentView(layout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         priceTextView = layout.findViewById(R.id.current_price_view);
         ethAmountEditText = layout.findViewById(R.id.eth_amount_input);
+        ethInputLayout = layout.findViewById(R.id.eth_input_layout);
         fiatAmountEditText = layout.findViewById(R.id.fiat_amount_input);
+        fiatInputLayout = layout.findViewById(R.id.fiat_input_layout);
         addressTextView = layout.findViewById(R.id.address_text_view);
         addressTextView.setText(getIntent().getExtras().getString(RECIEVER_ADDRESS));
 
@@ -70,49 +84,71 @@ public class SendActivity extends GActivity {
         final String price = DbMap.get(FIAT_PRICE);
         priceTextView.setText("1 ETH = ".concat(price + " " + currency));
 
-        fiatAmountEditText.setHint(currency.concat(" amount"));
-//        fiatAmountEditText.setInputType(InputType.TYPE_NUMBER_VARIATION_NORMAL);
-//        fiatAmountEditText.addTextChangedListener(new TextWatcher() {
-//            @Override
-//            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-//
-//            }
-//
-//            @Override
-//            public void onTextChanged(CharSequence s, int start, int before, int count) {
-//
-//            }
-//
-//            @Override
-//            public void afterTextChanged(Editable s) {
-////                Double fiatValue = Double.valueOf(s.toString());
-////                Double fiatPrice = Double.valueOf(price);
-////                Double ethAmount = fiatValue/fiatPrice;
-////                ethAmountEditText.setText(ethAmount.toString());
-//            }
-//        });
+        fiatInputLayout.setHint(currency);
+        fiatAmountEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
 
-        ethAmountEditText.setHint("ETH amount");
-//        ethAmountEditText.setInputType(InputType.TYPE_NUMBER_VARIATION_NORMAL);
-//        ethAmountEditText.addTextChangedListener(new TextWatcher() {
-//            @Override
-//            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-//
-//            }
-//
-//            @Override
-//            public void onTextChanged(CharSequence s, int start, int before, int count) {
-//
-//            }
-//
-//            @Override
-//            public void afterTextChanged(Editable s) {
-////                Double ethAmount = Double.valueOf(s.toString());
-////                Double fiatPrice = Double.valueOf(price);
-////                Double amount = ethAmount*fiatPrice;
-////                fiatAmountEditText.setText(amount.toString());
-//            }
-//        });
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                GLog.e(getClass(), "should be false and greater than 0 " + fiatSelected + " " + count);
+
+                if(!fiatSelected && count > 0) {
+                    Double fiatValue = Double.valueOf(s.toString());
+                    Double fiatPrice = Double.valueOf(price);
+                    Double ethAmount = fiatValue / fiatPrice;
+                    ethAmountEditText.setText(String.valueOf(ethAmount));
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+
+            }
+        });
+
+        fiatAmountEditText.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                fiatSelected = false;
+                fiatAmountEditText.performClick();
+                return false;
+            }
+        });
+
+        ethInputLayout.setHint("ETH");
+        ethAmountEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if(fiatSelected && count > 0) {
+                    Double ethAmount = Double.valueOf(s.toString());
+                    Double fiatPrice = Double.valueOf(price);
+                    Double amount = ethAmount * fiatPrice;
+                    fiatAmountEditText.setText(String.valueOf(amount));
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+
+            }
+        });
+
+        ethAmountEditText.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                fiatSelected = true;
+                ethAmountEditText.performClick();
+                return false;
+            }
+        });
     }
 
 //    @Override
