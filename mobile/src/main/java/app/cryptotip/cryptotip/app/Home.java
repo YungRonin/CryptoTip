@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.CardView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
@@ -17,6 +18,7 @@ import com.gani.lib.http.HttpAsyncGet;
 import com.gani.lib.http.HttpHook;
 import com.gani.lib.logging.GLog;
 import com.gani.lib.ui.ProgressIndicator;
+import com.gani.lib.ui.view.GTextView;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.WriterException;
@@ -65,6 +67,8 @@ public class Home extends AppCompatActivity {
     private static final int CURRENCY_CHANGE = 555;
     public static final String WALLET_FILE_PATH = "walletFilePath";
     public static final String FIAT_PRICE = "fiatPrice";
+    private GTextView fiatBalanceTextView;
+    private GTextView ethBalanceTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -120,8 +124,8 @@ public class Home extends AppCompatActivity {
         TextView pubKeyTview = findViewById(R.id.public_key_text_view);
         pubKeyTview.setTextIsSelectable(true);
         ImageView pubKeyimageView = findViewById(R.id.public_key_qr_code);
-        TextView ethBalanceTextView = findViewById(R.id.eth_balance_text_view);
-        final TextView fiatBalanceTextView = findViewById(R.id.fiat_balance_text_view);
+        ethBalanceTextView = findViewById(R.id.eth_balance_text_view);
+        fiatBalanceTextView = findViewById(R.id.fiat_balance_text_view);
 
         pubKeyTview.setText(getStringFromFile(walletFilePath));
         try {
@@ -144,6 +148,25 @@ public class Home extends AppCompatActivity {
             }
         }
 
+        currency = DbMap.get(SELECTED_CURRENCY);
+        if(currency == null){
+            currency = "USD";
+        }
+
+        refresh();
+
+        CardView refreshButton = findViewById(R.id.refresh_button_card_view);
+        refreshButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                refresh();
+            }
+        });
+
+    }
+
+    private void refresh(){
+
         Web3j weby = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));
         EthGetBalance ethGBalance = null;
         try {
@@ -165,12 +188,6 @@ public class Home extends AppCompatActivity {
         else{
             ethBalanceTextView.setText("failed to retrieve balance");
         }
-
-        currency = DbMap.get(SELECTED_CURRENCY);
-        if(currency == null){
-            currency = "USD";
-        }
-
 
 
         new HttpAsyncGet("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=" + currency, MyImmutableParams.EMPTY, HttpHook.DUMMY, new GRestCallback(this, new ProgressIndicator() {
