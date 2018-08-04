@@ -11,12 +11,11 @@ import android.os.Bundle;
 import android.support.design.widget.TextInputEditText;
 import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
-import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.EditText;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
@@ -160,6 +159,8 @@ public class SendActivity extends GActivity {
             @Override
             public void onClick(View v) {
                 if(ethAmount != null && ethAmount > 0){
+                    InputMethodManager imm = (InputMethodManager) SendActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(layout.getWindowToken(), 0);
                     createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(ethAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(ethAmount.toString())).show();
                 }
             }
@@ -257,9 +258,7 @@ public class SendActivity extends GActivity {
                 Web3j web3 = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));  // defaults to http://localhost:8545/
                 try {
                     Web3ClientVersion web3ClientVersion = web3.web3ClientVersion().sendAsync().get();
-//            Web3ClientVersion web3ClientVersion = web3.web3ClientVersion().send();
                     String clientVersion = web3ClientVersion.getWeb3ClientVersion();
-                    GLog.t(getClass(), "CLIENT: " + clientVersion);
 
                     try {
 
@@ -319,7 +318,6 @@ public class SendActivity extends GActivity {
 
         final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         this.startActivity(intent);
-        GLog.e(getClass(), "ehter url === \n" + url);
         return url;
     }
 }

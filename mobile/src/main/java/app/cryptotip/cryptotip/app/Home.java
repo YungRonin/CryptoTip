@@ -16,7 +16,6 @@ import com.gani.lib.http.GRestCallback;
 import com.gani.lib.http.GRestResponse;
 import com.gani.lib.http.HttpAsyncGet;
 import com.gani.lib.http.HttpHook;
-import com.gani.lib.logging.GLog;
 import com.gani.lib.ui.ProgressIndicator;
 import com.gani.lib.ui.view.GTextView;
 import com.google.zxing.BarcodeFormat;
@@ -54,6 +53,7 @@ import java.util.concurrent.ExecutionException;
 import app.cryptotip.cryptotip.app.database.DbMap;
 import app.cryptotip.cryptotip.app.http.MyImmutableParams;
 import app.cryptotip.cryptotip.app.json.MyJsonObject;
+import app.cryptotip.cryptotip.app.transaction.TransactionListActivity;
 
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.WHITE;
@@ -204,7 +204,6 @@ public class Home extends AppCompatActivity {
             @Override
             protected void onRestResponse(GRestResponse r) throws JSONException {
                 super.onRestResponse(r);
-                GLog.e(getClass(), "cryptocompare api response == \n" + r);
                 MyJsonObject object = new MyJsonObject(r.getJsonString());
                 String price = object.getString(currency);
                 DbMap.put(FIAT_PRICE, price);
