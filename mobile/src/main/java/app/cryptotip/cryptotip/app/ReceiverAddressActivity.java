@@ -43,7 +43,6 @@ public class ReceiverAddressActivity extends GActivity {
         layout = (LinearLayout) View.inflate(this, R.layout.receiver_layout, null);
         addContentView(layout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         sendButton = layout.findViewById(R.id.start_transaction_button);
-        sendButton.setBackground(BorderFactory.createBorders(this.getResources().getColor(android.R.color.white, null), this.getResources().getColor(android.R.color.black, null), 3,3,3,3));
         sendButton.text("Please enter valid address").bold();
         addressInputLayout = layout.findViewById(R.id.address_input_layout);
         addressInputLayout.setHint("Enter receiver address here");

@@ -1,6 +1,7 @@
 package app.cryptotip.cryptotip.app;
 
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -49,13 +50,18 @@ import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CURRENCY;
 
 public class SendActivity extends GActivity {
     private LinearLayout layout;
+    private LinearLayout createLayout;
+    private LinearLayout confirmlayout;
     private GTextView addressTextView;
     private GTextView priceTextView;
     private TextInputLayout ethInputLayout;
     private TextInputEditText ethAmountEditText;
     private TextInputLayout fiatInputLayout;
     private TextInputEditText fiatAmountEditText;
+    private GTextView sendButton;
     private boolean fiatSelected;
+    private Double ethAmount;
+    private Double fiatValue;
 
     public static Intent intent(Context context) {
         return new Intent(context, SendActivity.class);
@@ -67,6 +73,9 @@ public class SendActivity extends GActivity {
         super.onCreateForScreen(savedInstanceState, new MyScreenView(this));
         fiatSelected = false;
         layout = (LinearLayout) View.inflate(this, R.layout.send_layout, null);
+        createLayout = layout.findViewById(R.id.create_layout);
+        confirmlayout = layout.findViewById(R.id.confirm_layout);
+        confirmlayout.setVisibility(View.GONE);
         addContentView(layout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         priceTextView = layout.findViewById(R.id.current_price_view);
         ethAmountEditText = layout.findViewById(R.id.eth_amount_input);
@@ -75,8 +84,9 @@ public class SendActivity extends GActivity {
         fiatInputLayout = layout.findViewById(R.id.fiat_input_layout);
         addressTextView = layout.findViewById(R.id.address_text_view);
         addressTextView.setText(getIntent().getExtras().getString(RECIEVER_ADDRESS));
+        sendButton = layout.findViewById(R.id.send_transaction_button);
 
-        String currency = DbMap.get(SELECTED_CURRENCY);
+        final String currency = DbMap.get(SELECTED_CURRENCY);
         final String price = DbMap.get(FIAT_PRICE);
         priceTextView.setText("1 ETH = ".concat(price + " " + currency));
 
@@ -90,9 +100,9 @@ public class SendActivity extends GActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if(!fiatSelected && count > 0) {
-                    Double fiatValue = Double.valueOf(s.toString());
+                    fiatValue = Double.valueOf(s.toString());
                     Double fiatPrice = Double.valueOf(price);
-                    Double ethAmount = fiatValue / fiatPrice;
+                    ethAmount = fiatValue / fiatPrice;
                     ethAmountEditText.setText(String.valueOf(ethAmount));
                 }
             }
@@ -122,10 +132,10 @@ public class SendActivity extends GActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if(fiatSelected && count > 0) {
-                    Double ethAmount = Double.valueOf(s.toString());
+                    ethAmount = Double.valueOf(s.toString());
                     Double fiatPrice = Double.valueOf(price);
-                    Double amount = ethAmount * fiatPrice;
-                    fiatAmountEditText.setText(String.valueOf(amount));
+                    fiatValue = ethAmount * fiatPrice;
+                    fiatAmountEditText.setText(String.valueOf(fiatValue));
                 }
             }
 
@@ -143,24 +153,18 @@ public class SendActivity extends GActivity {
                 return false;
             }
         });
-    }
 
-//    @Override
-//    public void onPostCreate(@Nullable Bundle savedinstaceState) {
-//        super.onPostCreate(savedinstaceState);
-//        scanner = new QrScanner(this, layout);
-//        scanner.init();
-//        sendButton.setBackground(BorderFactory.createBorders(this.getResources().getColor(android.R.color.white, null), this.getResources().getColor(android.R.color.black, null), 3,3,3,3));
-//        sendButton.bold();
-//        sendButton.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                Bundle bundle = new Bundle();
-//                bundle.putCharSequence(RECIEVER_ADDRESS, addressInput.getText().toString());
-//                startActivity(SendActivity.intent(ReceiverAddressActivity.this), bundle);
-//            }
-//        });
-//    }
+
+        sendButton.text("Confirm & Send");
+        sendButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(ethAmount != null && ethAmount > 0){
+                    createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(ethAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(ethAmount.toString())).show();
+                }
+            }
+        });
+    }
 
     private void handleTransactionReceipt(final TransactionReceipt transactionReceipt){
         Ui.run(new Runnable() {
@@ -176,6 +180,7 @@ public class SendActivity extends GActivity {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         dialog.dismiss();
+                        SendActivity.this.finish();
                     }
                 });
                 builder.create().show();
@@ -184,17 +189,28 @@ public class SendActivity extends GActivity {
     }
 
 
-    private AlertDialog createTransactionAmoutDialog(final String address){
+    private AlertDialog createTransactionAmoutDialog(final String address, final String ethAmount, String fiatAmountString, String ethAmountString){
         final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Trasaction Amount");
-        final EditText inputField = new EditText(this);
-        inputField.setHint("enter tip amount");
-        inputField.setInputType(InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        builder.setView(inputField);
+        builder.setTitle("Confirm Trasaction Amount");
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50,50,50,50);
+        GTextView ethAmountField = new GTextView(this);
+        ethAmountField.text(ethAmountString).bold();
+        layout.addView(ethAmountField);
+        GTextView fiatAmountField = new GTextView(this);
+        fiatAmountField.text(fiatAmountString).bold();
+        layout.addView(fiatAmountField);
+        GTextView addressTextView = new GTextView(this);
+        addressTextView.text("To : ".concat(address)).bold();
+        layout.addView(addressTextView);
+        builder.setView(layout);
         builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                new AsyncSendTask(SendActivity.this).execute(address, inputField.getText().toString(), DbMap.get(WALLET_FILE_PATH));
+                new AsyncSendTask(SendActivity.this).execute(address, ethAmount, DbMap.get(WALLET_FILE_PATH));
+                confirmlayout.setVisibility(View.VISIBLE);
+                createLayout.setVisibility(View.GONE);
             }
         });
         builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
@@ -230,45 +246,51 @@ public class SendActivity extends GActivity {
         }
 
         public Exception send(String address, String amount, String walletPath) {
-            context.generateERC681Url(address, null, amount);
 
-            Web3j web3 = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));  // defaults to http://localhost:8545/
+            //todo allow the user to switch between generating a erc681 intent and sending straight from app
             try {
-                Web3ClientVersion web3ClientVersion = web3.web3ClientVersion().sendAsync().get();
-//            Web3ClientVersion web3ClientVersion = web3.web3ClientVersion().send();
-                String clientVersion = web3ClientVersion.getWeb3ClientVersion();
-                GLog.t(getClass(), "CLIENT: " + clientVersion);
+                context.generateERC681Url(address, null, amount);
+                return null;
+            }
+            catch (ActivityNotFoundException anfE) {
 
+                Web3j web3 = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));  // defaults to http://localhost:8545/
                 try {
-
-                    Credentials credentials = WalletUtils.loadCredentials("atestpasswordhere", walletPath);
+                    Web3ClientVersion web3ClientVersion = web3.web3ClientVersion().sendAsync().get();
+//            Web3ClientVersion web3ClientVersion = web3.web3ClientVersion().send();
+                    String clientVersion = web3ClientVersion.getWeb3ClientVersion();
+                    GLog.t(getClass(), "CLIENT: " + clientVersion);
 
                     try {
-                        TransactionReceipt transactionReceipt = Transfer.sendFunds(
-                                web3, credentials, address,
-                                new BigDecimal(amount), Convert.Unit.ETHER)
-                                .send();
 
-                        context.handleTransactionReceipt(transactionReceipt);
-                        GLog.t(getClass(), "TxHash: " + transactionReceipt.getTransactionHash());
-                    } catch (Exception e) {
+                        Credentials credentials = WalletUtils.loadCredentials("atestpasswordhere", walletPath);
+
+                        try {
+                            TransactionReceipt transactionReceipt = Transfer.sendFunds(
+                                    web3, credentials, address,
+                                    new BigDecimal(amount), Convert.Unit.ETHER)
+                                    .send();
+
+                            context.handleTransactionReceipt(transactionReceipt);
+                            GLog.t(getClass(), "TxHash: " + transactionReceipt.getTransactionHash());
+                        } catch (Exception e) {
+                            GLog.e(getClass(), "Failed", e);
+                            return e;
+                        }
+
+                    } catch (IOException e) {
                         GLog.e(getClass(), "Failed", e);
-                        return e;
+                    } catch (CipherException e) {
+                        GLog.e(getClass(), "Failed", e);
                     }
 
-                } catch (IOException e) {
+                } catch (InterruptedException e) {
                     GLog.e(getClass(), "Failed", e);
-                } catch (CipherException e) {
+                } catch (ExecutionException e) {
                     GLog.e(getClass(), "Failed", e);
                 }
-
+                return null;
             }
-            catch (InterruptedException e) {
-                GLog.e(getClass(), "Failed", e);
-            } catch (ExecutionException e) {
-                GLog.e(getClass(), "Failed", e);
-            }
-            return null;
         }
     }
 
