@@ -337,7 +337,7 @@ public class Home extends AppCompatActivity {
         return null;
     }
 
-    public String getContractAddress(String tokenID){
+    public static String getContractAddress(String tokenID){
         switch (tokenID){
             case "ALPH" : return "0xfb0fBFd118D25bBDB82fF6bFe9b08f3Ae9B68a64";
             case "BETA" : return "0xadADEef132DbE73cF951DD77C4cFcF87D682F543";

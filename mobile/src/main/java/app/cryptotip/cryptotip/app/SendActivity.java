@@ -12,6 +12,7 @@ import android.support.design.widget.TextInputEditText;
 import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,28 +25,49 @@ import com.gani.lib.screen.GActivity;
 import com.gani.lib.ui.Ui;
 import com.gani.lib.ui.view.GTextView;
 
+import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.TypeReference;
+import org.web3j.abi.datatypes.Function;
+import org.web3j.abi.datatypes.Type;
+import org.web3j.contracts.token.ERC20Interface;
 import org.web3j.crypto.CipherException;
 import org.web3j.crypto.Credentials;
+import org.web3j.crypto.RawTransaction;
+import org.web3j.crypto.TransactionEncoder;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.Web3jFactory;
+import org.web3j.protocol.core.DefaultBlockParameter;
+import org.web3j.protocol.core.DefaultBlockParameterName;
+import org.web3j.protocol.core.RemoteCall;
+import org.web3j.protocol.core.methods.response.EthGetTransactionCount;
+import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.core.methods.response.Web3ClientVersion;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.Transfer;
 import org.web3j.utils.Convert;
+import org.web3j.utils.Numeric;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import app.cryptotip.cryptotip.app.database.DbMap;
 import app.cryptotip.cryptotip.app.view.MyScreenView;
+import rx.Observable;
 
 import static app.cryptotip.cryptotip.app.Home.FIAT_PRICE;
 import static app.cryptotip.cryptotip.app.Home.WALLET_FILE_PATH;
 import static app.cryptotip.cryptotip.app.ReceiverAddressActivity.RECIEVER_ADDRESS;
+import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CRYPTO_CURRENCY;
 import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_FIAT_CURRENCY;
+import static org.web3j.tx.Contract.GAS_LIMIT;
+import static org.web3j.tx.ManagedTransaction.GAS_PRICE;
 
 public class SendActivity extends GActivity {
     private LinearLayout layout;
@@ -53,13 +75,13 @@ public class SendActivity extends GActivity {
     private LinearLayout confirmlayout;
     private GTextView addressTextView;
     private GTextView priceTextView;
-    private TextInputLayout ethInputLayout;
-    private TextInputEditText ethAmountEditText;
+    private TextInputLayout cryptoInputLayout;
+    private TextInputEditText cryptoAmountEditText;
     private TextInputLayout fiatInputLayout;
     private TextInputEditText fiatAmountEditText;
     private GTextView sendButton;
     private boolean fiatSelected;
-    private Double ethAmount;
+    private Double cryptoAmount;
     private Double fiatValue;
 
     public static Intent intent(Context context) {
@@ -77,8 +99,8 @@ public class SendActivity extends GActivity {
         confirmlayout.setVisibility(View.GONE);
         addContentView(layout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         priceTextView = layout.findViewById(R.id.current_price_view);
-        ethAmountEditText = layout.findViewById(R.id.eth_amount_input);
-        ethInputLayout = layout.findViewById(R.id.eth_input_layout);
+        cryptoAmountEditText = layout.findViewById(R.id.crypto_amount_input);
+        cryptoInputLayout = layout.findViewById(R.id.crypto_input_layout);
         fiatAmountEditText = layout.findViewById(R.id.fiat_amount_input);
         fiatInputLayout = layout.findViewById(R.id.fiat_input_layout);
         addressTextView = layout.findViewById(R.id.address_text_view);
@@ -87,7 +109,7 @@ public class SendActivity extends GActivity {
 
         final String currency = DbMap.get(SELECTED_FIAT_CURRENCY);
         final String price = DbMap.get(FIAT_PRICE);
-        priceTextView.setText("1 ETH = ".concat(price + " " + currency));
+        priceTextView.setText("1 ".concat(DbMap.get(SELECTED_CRYPTO_CURRENCY).concat(" = " + price + " " + currency)));
 
         fiatInputLayout.setHint(currency);
         fiatAmountEditText.addTextChangedListener(new TextWatcher() {
@@ -101,8 +123,8 @@ public class SendActivity extends GActivity {
                 if(!fiatSelected && count > 0) {
                     fiatValue = Double.valueOf(s.toString());
                     Double fiatPrice = Double.valueOf(price);
-                    ethAmount = fiatValue / fiatPrice;
-                    ethAmountEditText.setText(String.valueOf(ethAmount));
+                    cryptoAmount = fiatValue / fiatPrice;
+                    cryptoAmountEditText.setText(String.valueOf(cryptoAmount));
                 }
             }
 
@@ -121,8 +143,8 @@ public class SendActivity extends GActivity {
             }
         });
 
-        ethInputLayout.setHint("ETH");
-        ethAmountEditText.addTextChangedListener(new TextWatcher() {
+        cryptoInputLayout.setHint(DbMap.get(SELECTED_CRYPTO_CURRENCY));
+        cryptoAmountEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
 
@@ -131,9 +153,9 @@ public class SendActivity extends GActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if(fiatSelected && count > 0) {
-                    ethAmount = Double.valueOf(s.toString());
+                    cryptoAmount = Double.valueOf(s.toString());
                     Double fiatPrice = Double.valueOf(price);
-                    fiatValue = ethAmount * fiatPrice;
+                    fiatValue = cryptoAmount * fiatPrice;
                     fiatAmountEditText.setText(String.valueOf(fiatValue));
                 }
             }
@@ -144,11 +166,11 @@ public class SendActivity extends GActivity {
             }
         });
 
-        ethAmountEditText.setOnTouchListener(new View.OnTouchListener() {
+        cryptoAmountEditText.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 fiatSelected = true;
-                ethAmountEditText.performClick();
+                cryptoAmountEditText.performClick();
                 return false;
             }
         });
@@ -158,13 +180,39 @@ public class SendActivity extends GActivity {
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(ethAmount != null && ethAmount > 0){
+                if(cryptoAmount != null && cryptoAmount > 0){
+
                     InputMethodManager imm = (InputMethodManager) SendActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
                     imm.hideSoftInputFromWindow(layout.getWindowToken(), 0);
-                    createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(ethAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(ethAmount.toString())).show();
+
+                    String selectedCrypto = DbMap.get(SELECTED_CRYPTO_CURRENCY);
+                    if(selectedCrypto != null && !selectedCrypto.contentEquals("ETH")){
+
+                        //todo refactor
+                        try {
+                            Credentials creds = WalletUtils.loadCredentials("atestpasswordhere", DbMap.get(WALLET_FILE_PATH));
+                            String from = creds.getAddress();
+                            String to = addressTextView.getText().toString();
+                            String contractAddress = Home.getContractAddress(selectedCrypto);
+                            String[] split = String.valueOf(cryptoAmount).split("\\."); //todo enable transactions with decimal amounts
+                            String amount = split[0];
+                            createErc20TransactionAmoutDialog(from, to, amount, contractAddress).show();
+                        } catch (CipherException e) {
+                            Log.e("fail", "exception " + e);
+                        } catch (IOException e) {
+                            Log.e("fail", "exception " + e);
+                        }
+                    }
+                    else{
+                        createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(cryptoAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(cryptoAmount.toString())).show();
+                    }
                 }
             }
         });
+    }
+
+    private void detectTransactionStatus(){
+
     }
 
     private void handleTransactionReceipt(final TransactionReceipt transactionReceipt){
@@ -223,6 +271,38 @@ public class SendActivity extends GActivity {
 
         return builder.create();
     }
+
+    private AlertDialog createErc20TransactionAmoutDialog(final String from, final String to, final String amount, final String contractAddress){
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Confirm Trasaction Amount");
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50,50,50,50);
+        GTextView tokenAmount = new GTextView(this);
+        tokenAmount.text(amount.concat(" " + DbMap.get(SELECTED_CRYPTO_CURRENCY))).bold(); //todo avoid using room to get value
+        layout.addView(tokenAmount);
+        GTextView addressTextView = new GTextView(this);
+        addressTextView.text("To : ".concat(to)).bold();
+        layout.addView(addressTextView);
+        builder.setView(layout);
+        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                new AsyncErc20SendTask(SendActivity.this).execute(from, to, contractAddress, amount,  DbMap.get(WALLET_FILE_PATH));
+                confirmlayout.setVisibility(View.VISIBLE);
+                createLayout.setVisibility(View.GONE);
+            }
+        });
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+
+        return builder.create();
+    }
+
 
     public static class AsyncSendTask extends AsyncTask<String, String, Exception> {
         SendActivity context;
@@ -290,6 +370,87 @@ public class SendActivity extends GActivity {
                 }
                 return null;
             }
+        }
+    }
+
+    public static class AsyncErc20SendTask extends AsyncTask<String, String, Exception> {
+        SendActivity context;
+
+        public AsyncErc20SendTask(SendActivity context){
+            super();
+            this.context = context;
+        }
+
+        @Override
+        protected Exception doInBackground(String... params) {
+
+
+            return sendErc20Token(params[0], params[1], params[2], params[3], params[4]);
+        }
+
+        @Override
+        protected void onPostExecute(Exception e) {
+            if(e != null && context != null) {
+                Toast.makeText(context, e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+
+        public Exception sendErc20Token(String from, String to, String contractAddress, String amount, String walletPath) {
+            
+            final Function function = new Function(
+                    "transferFrom",
+                    Arrays.<Type>asList(new org.web3j.abi.datatypes.Address(from),
+                            new org.web3j.abi.datatypes.Address(to),
+                            new org.web3j.abi.datatypes.generated.Uint256(new BigInteger(amount))),
+                    Collections.<TypeReference<?>>emptyList());
+
+            String encodedFunction = FunctionEncoder.encode(function);
+
+            Web3j web3 = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));
+
+            try {
+                EthGetTransactionCount transactionCount = web3
+                        .ethGetTransactionCount(from, DefaultBlockParameterName.LATEST)
+                        .sendAsync()
+                        .get();
+
+                BigInteger nonce = transactionCount.getTransactionCount();
+
+                RawTransaction rawTransaction = RawTransaction.createTransaction(
+                        nonce,
+                        GAS_PRICE,
+                        GAS_LIMIT,
+                        contractAddress,
+                        encodedFunction);
+
+                Credentials credentials = WalletUtils.loadCredentials("atestpasswordhere", walletPath);
+
+                byte[] signedMessage = TransactionEncoder.signMessage(rawTransaction, credentials);
+                String hexValue = Numeric.toHexString(signedMessage);
+
+
+                EthSendTransaction transactionResponse = web3.ethSendRawTransaction(hexValue)
+                        .sendAsync().get();
+
+                String transactionHash = transactionResponse.getTransactionHash();
+
+                //todo do something with hash
+                GLog.e(getClass(), "transaction hash == " + transactionHash);
+                return null;
+            }
+            catch(ExecutionException e){
+                GLog.e(getClass(), "concurrent execution exception " + e);
+            }
+            catch (InterruptedException e){
+                GLog.e(getClass(), "interrupted exception " + e);
+            }
+            catch(IOException e){
+                GLog.e(getClass(), "IO exception " + e);
+            }
+            catch (CipherException e){
+                GLog.e(getClass(), "Cipher exception " + e);
+            }
+            return null;
         }
     }
 
