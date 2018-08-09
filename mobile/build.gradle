@@ -19,33 +19,27 @@ android {
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'com.android.support:appcompat-v7:26.1.0'
-    implementation "com.android.support:recyclerview-v7:26.1.0"
-    implementation "com.android.support:support-annotations:27.1.1"
-    implementation "com.android.support:design:26.1.0"
+    implementation 'com.android.support:recyclerview-v7:26.1.0'
+    implementation 'com.android.support:support-annotations:27.1.1'
+    implementation 'com.android.support:design:26.1.0'
     implementation 'com.android.support.constraint:constraint-layout:1.1.2'
-
     wearApp project(':wear')
     implementation 'com.google.android.gms:play-services-wearable:15.0.1'
     implementation 'com.google.android.gms:play-services-vision:15.0.2'
-
     implementation 'com.google.firebase:firebase-core:16.0.1'
-
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
-
     implementation 'org.web3j:core:3.3.1-android'
     implementation 'com.google.zxing:core:3.3.0'
-
     implementation 'android.arch.persistence.room:runtime:1.1.1'
     annotationProcessor 'android.arch.persistence.room:compiler:1.1.1'
-
     implementation 'com.github.hgani.ganilib-android:ganilib-core:5af108d899064ed3feb7dc2ab5fb22071055798f'
-
-    implementation("com.mikepenz:materialdrawer:6.0.2@aar") {
+    implementation 'com.github.trezor.trezor-android:trezor-lib:+'
+    implementation('com.mikepenz:materialdrawer:6.0.2@aar') {
         transitive = true
     }
-//    compile project(':ganilib-core')
+    //    compile project(':ganilib-core')
 }

@@ -1,9 +1,13 @@
 package app.cryptotip.cryptotip.app;
 
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.Toolbar;
@@ -27,6 +31,8 @@ import com.mikepenz.materialdrawer.Drawer;
 import com.mikepenz.materialdrawer.DrawerBuilder;
 import com.mikepenz.materialdrawer.model.PrimaryDrawerItem;
 import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
+import com.satoshilabs.trezor.lib.TrezorManager;
+import com.satoshilabs.trezor.lib.protobuf.TrezorMessage;
 
 import org.json.JSONException;
 import org.web3j.abi.FunctionEncoder;
@@ -56,6 +62,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -368,5 +375,49 @@ public class Home extends AppCompatActivity {
         Log.e(getClass().getName(), "return a value ");
 
         return aRandomBigInt;
+    }
+
+
+    private void accessTrezor() {
+
+        UsbManager usbManager = (UsbManager) this.getSystemService(USB_SERVICE);
+
+        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+
+        UsbDevice deviceWithoutPermission = null;
+
+        for (UsbDevice usbDevice : deviceList.values()) {
+            // check if the device is TREZOR
+            Boolean deviceIsTrezor = isDeviceTrezor(usbDevice);
+            if (deviceIsTrezor == null || !deviceIsTrezor){
+
+            }
+            else{
+                if (!usbManager.hasPermission(usbDevice)) {
+                    if (deviceWithoutPermission == null)
+                        deviceWithoutPermission = usbDevice;
+                }
+            }
+
+            usbManager.requestPermission(deviceWithoutPermission, PendingIntent.getBroadcast(this, 0, new Intent(TrezorManager.UsbPermissionReceiver.ACTION), 0));
+
+            String state = String.valueOf(TrezorMessage.Initialize.newBuilder().build().getState());
+            Boolean deviceIsInitialized = TrezorMessage.LoadDevice.newBuilder().build().isInitialized();
+            TrezorMessage.EthereumGetAddress address = TrezorMessage.EthereumGetAddress.getDefaultInstance();
+
+            new AlertDialog.Builder(this).setTitle("Status")
+                    .setMessage("trezor state ".concat(state)
+                            .concat("\ntrezor device is initialized ".concat(deviceIsInitialized.toString())
+                                    .concat("\ntrezor eth address ".concat(address.toString()))))
+                    .create()
+                    .show();
+        }
+    }
+
+    private Boolean isDeviceTrezor(UsbDevice usbDevice){
+        if (usbDevice.getVendorId() == 0x1209) {
+            return usbDevice.getProductId() == 0x53c0 || usbDevice.getProductId() == 0x53c1;
+        }
+        return null;
     }
 }
