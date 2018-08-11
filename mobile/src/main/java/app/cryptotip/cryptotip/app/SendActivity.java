@@ -30,7 +30,6 @@ import org.web3j.abi.FunctionEncoder;
 import org.web3j.abi.TypeReference;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.Type;
-import org.web3j.contracts.token.ERC20Interface;
 import org.web3j.crypto.CipherException;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.RawTransaction;
@@ -38,9 +37,7 @@ import org.web3j.crypto.TransactionEncoder;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.Web3jFactory;
-import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.DefaultBlockParameterName;
-import org.web3j.protocol.core.RemoteCall;
 import org.web3j.protocol.core.methods.response.EthGetTransactionCount;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
@@ -58,18 +55,16 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import app.cryptotip.cryptotip.app.database.DbMap;
 import app.cryptotip.cryptotip.app.view.MyScreenView;
-import rx.Observable;
 
 import static app.cryptotip.cryptotip.app.Home.FIAT_PRICE;
+import static app.cryptotip.cryptotip.app.Home.SELECTED_CRYPTO_CURRENCY;
+import static app.cryptotip.cryptotip.app.Home.SELECTED_FIAT_CURRENCY;
 import static app.cryptotip.cryptotip.app.Home.WALLET_FILE_PATH;
 import static app.cryptotip.cryptotip.app.ReceiverAddressActivity.RECIEVER_ADDRESS;
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CRYPTO_CURRENCY;
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_FIAT_CURRENCY;
 import static org.web3j.tx.Contract.GAS_LIMIT;
 import static org.web3j.tx.ManagedTransaction.GAS_PRICE;
 

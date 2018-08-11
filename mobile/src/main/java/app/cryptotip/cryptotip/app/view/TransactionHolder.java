@@ -15,7 +15,8 @@ import app.cryptotip.cryptotip.app.R;
 import app.cryptotip.cryptotip.app.database.DbMap;
 import app.cryptotip.cryptotip.app.transaction.Transaction;
 
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_FIAT_CURRENCY;
+import static app.cryptotip.cryptotip.app.Home.SELECTED_FIAT_CURRENCY;
+
 
 public class TransactionHolder extends RecyclerView.ViewHolder{
 

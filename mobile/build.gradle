@@ -38,7 +38,7 @@ dependencies {
     annotationProcessor 'android.arch.persistence.room:compiler:1.1.1'
     implementation 'com.github.hgani.ganilib-android:ganilib-core:5af108d899064ed3feb7dc2ab5fb22071055798f'
     implementation 'com.github.trezor.trezor-android:trezor-lib:+'
-    implementation('com.mikepenz:materialdrawer:6.0.2@aar') {
+    implementation('com.mikepenz:materialdrawer:6.0.9@aar') {
         transitive = true
     }
     //    compile project(':ganilib-core')

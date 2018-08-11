@@ -1,19 +1,25 @@
 package app.cryptotip.cryptotip.app;
 
 import android.app.PendingIntent;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.v4.content.res.ResourcesCompat;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.gani.lib.http.GRestCallback;
@@ -73,20 +79,25 @@ import app.cryptotip.cryptotip.app.transaction.TransactionListActivity;
 
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.WHITE;
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_CRYPTO_CURRENCY;
-import static app.cryptotip.cryptotip.app.SettingsActivity.SELECTED_FIAT_CURRENCY;
 
 public class Home extends AppCompatActivity {
     private String pubKey;
     private String walletFilePath;
-    private String fiatCurrency;
-    private String cryptoCurrency;
+//    private String fiatCurrency;
+//    private String cryptoCurrency;
     private String cryptoBalance;
+    private String selectedFiatCurrency;
+    private String selectedCryptoCurrency;
+    private GTextView fiatBalanceTextView;
+    private GTextView cryptoBalanceTextView;
+    private Drawer activityDrawer;
+    private Drawer settingsDrawer;
+    protected DrawerLayout mDrawerLayout;
     private static final int CURRENCY_CHANGE = 555;
     public static final String WALLET_FILE_PATH = "walletFilePath";
     public static final String FIAT_PRICE = "fiatPrice";
-    private GTextView fiatBalanceTextView;
-    private GTextView cryptoBalanceTextView;
+    public static final String SELECTED_FIAT_CURRENCY = "selectedFiatCurrency";
+    public static final String SELECTED_CRYPTO_CURRENCY = "selectedCryptoCurrency";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,37 +112,13 @@ public class Home extends AppCompatActivity {
             DbMap.put(WALLET_FILE_PATH, walletFilePath);
         }
 
-        Toolbar tbar = this.findViewById(R.id.toolbar);
-        tbar.setTitle("cryptoTIP");
-
-        new DrawerBuilder()
-                .withActivity(this)
-                .withToolbar(tbar)
-                .withDisplayBelowStatusBar(true)
-                .withTranslucentStatusBar(false)
-                .addDrawerItems(
-                        new PrimaryDrawerItem().withIdentifier(45).withName("Send"),
-                        new PrimaryDrawerItem().withIdentifier(77).withName("Tip History"),
-                        new PrimaryDrawerItem().withIdentifier(86).withName("Settings"))
-                .withOnDrawerItemClickListener(new Drawer.OnDrawerItemClickListener() {
-                    @Override
-                    public boolean onItemClick(View view, int position, IDrawerItem drawerItem) {
-                        switch (position){
-                            case 0: startActivity(new ReceiverAddressActivity().intent(Home.this)); break;
-                            case 1: startActivity(new TransactionListActivity().intent(Home.this)); break;
-                            case 2: startActivityForResult(new SettingsActivity().intent(Home.this), CURRENCY_CHANGE);
-                        }
-                        return false;
-                    }
-                })
-                .build();
+        setUpToolbarAndDrawers();
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == CURRENCY_CHANGE) {
             this.onPostCreate(null);
-            //todo refactor to improve efficiency (only call necessary methods in onPostCreate)
         }
     }
 
@@ -166,16 +153,16 @@ public class Home extends AppCompatActivity {
             }
         }
 
-        fiatCurrency = DbMap.get(SELECTED_FIAT_CURRENCY);
-        if(fiatCurrency == null){
-            fiatCurrency = "USD";
-            DbMap.put(SELECTED_FIAT_CURRENCY, fiatCurrency);
+        selectedFiatCurrency = DbMap.get(SELECTED_FIAT_CURRENCY);
+        if(selectedFiatCurrency == null){
+            selectedFiatCurrency = "USD";
+            DbMap.put(SELECTED_FIAT_CURRENCY, selectedFiatCurrency);
         }
 
-        cryptoCurrency = DbMap.get(SELECTED_CRYPTO_CURRENCY);
-        if(cryptoCurrency == null){
-            cryptoCurrency = "ETH";
-            DbMap.put(SELECTED_CRYPTO_CURRENCY, cryptoCurrency);
+        selectedCryptoCurrency = DbMap.get(SELECTED_CRYPTO_CURRENCY);
+        if(selectedCryptoCurrency == null){
+            selectedCryptoCurrency = "ETH";
+            DbMap.put(SELECTED_CRYPTO_CURRENCY, selectedCryptoCurrency);
         }
 
         refresh();
@@ -205,17 +192,17 @@ public class Home extends AppCompatActivity {
         }
 
         cryptoBalanceTextView.setTextIsSelectable(true);
-        if(cryptoCurrency.contentEquals("ETH")) {
+        if(selectedCryptoCurrency.contentEquals("ETH")) {
             if (ethGBalance != null) {
                 BigInteger bigIntBal = ethGBalance.getBalance();
                 cryptoBalance = new BalanceHelper().convertWeiToEth(bigIntBal);
-                cryptoBalanceTextView.setText(cryptoCurrency.concat(" Balance : " + cryptoBalance));
+                cryptoBalanceTextView.setText(selectedCryptoCurrency.concat(" Balance : " + cryptoBalance));
             } else {
                 cryptoBalanceTextView.setText("failed to retrieve balance");
             }
         }
         else{
-            String contractAddress = getContractAddress(cryptoCurrency);
+            String contractAddress = getContractAddress(selectedCryptoCurrency);
             if(contractAddress != null) {
                 try {
 
@@ -229,7 +216,7 @@ public class Home extends AppCompatActivity {
                     Address result = new Address(response.getResult());
 
                     cryptoBalance = new BalanceHelper().convertWeiToEth(result.toUint160().getValue());
-                    cryptoBalanceTextView.setText(cryptoCurrency.concat(" Balance : " + cryptoBalance));
+                    cryptoBalanceTextView.setText(selectedCryptoCurrency.concat(" Balance : " + cryptoBalance));
 
                 } catch (InterruptedException e) {
                     cryptoBalanceTextView.setText("failed to retrieve balance");
@@ -246,7 +233,7 @@ public class Home extends AppCompatActivity {
 
 
         //todo support erc20 prices
-        new HttpAsyncGet("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=" + fiatCurrency, MyImmutableParams.EMPTY, HttpHook.DUMMY, new GRestCallback(this, new ProgressIndicator() {
+        new HttpAsyncGet("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=" + selectedFiatCurrency, MyImmutableParams.EMPTY, HttpHook.DUMMY, new GRestCallback(this, new ProgressIndicator() {
             @Override
             public void showProgress() {
                 // TODO: 11/06/18
@@ -261,9 +248,9 @@ public class Home extends AppCompatActivity {
             protected void onRestResponse(GRestResponse r) throws JSONException {
                 super.onRestResponse(r);
                 MyJsonObject object = new MyJsonObject(r.getJsonString());
-                String price = object.getString(fiatCurrency);
+                String price = object.getString(selectedFiatCurrency);
                 DbMap.put(FIAT_PRICE, price);
-                String text = fiatCurrency + " : " + price + "\nvalue : " + String.valueOf(Double.valueOf(cryptoBalance) * Double.valueOf(price));
+                String text = selectedFiatCurrency + " : " + price + "\nvalue : " + String.valueOf(Double.valueOf(cryptoBalance) * Double.valueOf(price));
                 fiatBalanceTextView.setText(text);
             }
         }).execute();
@@ -421,5 +408,127 @@ public class Home extends AppCompatActivity {
             return usbDevice.getProductId() == 0x53c0 || usbDevice.getProductId() == 0x53c1;
         }
         return null;
+    }
+
+    private android.app.AlertDialog createFiatCurrencySelectorDialog(){
+        final CharSequence[] fiatCurrencyCodes = {"AUD", "USD", "EUR", "GBP", "INR", "MYR", "IDR", "RUB", "NZD", "THB", "SGD", "JPY", "CNY", "CAD", "KRW", "SAR", "AED"};
+
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                .setTitle("Currecny")
+                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                    }
+                })
+                .setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        DbMap.put(SELECTED_FIAT_CURRENCY, selectedFiatCurrency);
+                        refresh();
+                    }
+                })
+                .setSingleChoiceItems(fiatCurrencyCodes, fiatCurrencyCodes.length, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        selectedFiatCurrency = fiatCurrencyCodes[which].toString();
+                    }
+                }).create();
+        return dialog;
+    }
+
+    private android.app.AlertDialog createCryptoCurrencySelectorDialog(){
+        final CharSequence[] cryptoCurrencyCodes = {"ETH", "OMEG", "BETA", "ALPH"};
+
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                .setTitle("Currecny")
+                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                    }
+                })
+                .setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        DbMap.put(SELECTED_CRYPTO_CURRENCY, selectedCryptoCurrency);
+                        refresh();
+                    }
+                })
+                .setSingleChoiceItems(cryptoCurrencyCodes, cryptoCurrencyCodes.length, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        selectedCryptoCurrency = cryptoCurrencyCodes[which].toString();
+                    }
+                }).create();
+        return dialog;
+    }
+
+    @Override
+    public void onBackPressed() {
+        //handle the back press :D close the drawer first and if the drawer is closed close the activity
+        if (activityDrawer != null && activityDrawer.isDrawerOpen()) {
+            activityDrawer.closeDrawer();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    private void setUpToolbarAndDrawers(){
+        Toolbar tbar = this.findViewById(R.id.toolbar);
+        tbar.setTitle("cryptoTIP");
+        setSupportActionBar(tbar);
+        ImageView iconView = new ImageView(this);
+        iconView.setPadding(750,0,0,0); //todo icon will be off edge of screen on lower resolution screen
+        iconView.setImageDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_settings_20px, null));
+        tbar.addView(iconView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 100));
+
+        activityDrawer = new DrawerBuilder()
+                .withActivity(this)
+                .withToolbar(tbar)
+                .withDisplayBelowStatusBar(true)
+                .withTranslucentStatusBar(false)
+                .addDrawerItems(
+                        new PrimaryDrawerItem().withIdentifier(45).withName("Send"),
+                        new PrimaryDrawerItem().withIdentifier(77).withName("Tip History"))
+                .withOnDrawerItemClickListener(new Drawer.OnDrawerItemClickListener() {
+                    @Override
+                    public boolean onItemClick(View view, int position, IDrawerItem drawerItem) {
+                        switch (position){
+                            case 0: startActivity(new ReceiverAddressActivity().intent(Home.this)); break;
+                            case 1: startActivity(new TransactionListActivity().intent(Home.this)); break;
+                        }
+                        return false;
+                    }
+                })
+                .build();
+
+
+
+        settingsDrawer = new DrawerBuilder()
+                .withActivity(this)
+                .withDisplayBelowStatusBar(true)
+                .withTranslucentStatusBar(false)
+                .addDrawerItems(
+                        new PrimaryDrawerItem().withIdentifier(45).withName("Fiat Currency"),
+                        new PrimaryDrawerItem().withIdentifier(77).withName("Crypto Currency"))
+                .withOnDrawerItemClickListener(new Drawer.OnDrawerItemClickListener() {
+                    @Override
+                    public boolean onItemClick(View view, int position, IDrawerItem drawerItem) {
+                        switch (position){
+                            case 0: createFiatCurrencySelectorDialog().show(); break;
+                            case 1: createCryptoCurrencySelectorDialog().show(); break;
+                        }
+                        return false;
+                    }
+                })
+                .withDrawerGravity(Gravity.END)
+                .append(activityDrawer);
+        iconView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                settingsDrawer.openDrawer();
+            }
+        });
     }
 }
