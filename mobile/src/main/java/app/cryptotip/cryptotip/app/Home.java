@@ -169,11 +169,13 @@ public class Home extends AppCompatActivity {
         fiatCurrency = DbMap.get(SELECTED_FIAT_CURRENCY);
         if(fiatCurrency == null){
             fiatCurrency = "USD";
+            DbMap.put(SELECTED_FIAT_CURRENCY, fiatCurrency);
         }
 
         cryptoCurrency = DbMap.get(SELECTED_CRYPTO_CURRENCY);
         if(cryptoCurrency == null){
             cryptoCurrency = "ETH";
+            DbMap.put(SELECTED_CRYPTO_CURRENCY, cryptoCurrency);
         }
 
         refresh();

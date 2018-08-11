@@ -98,7 +98,7 @@
                     <com.gani.lib.ui.view.GTextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Please wait while your transaction is confirmed on the blockchain."
+                        android:text="Please wait while your transaction is confirmed on the blockchain or press back and review your transaction later in Tip History"
                         android:padding="@dimen/padding_small"/>
                 </FrameLayout>
             </android.support.v7.widget.CardView>

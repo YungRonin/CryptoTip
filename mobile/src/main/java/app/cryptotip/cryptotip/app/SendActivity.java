@@ -23,6 +23,7 @@ import android.widget.Toast;
 import com.gani.lib.logging.GLog;
 import com.gani.lib.screen.GActivity;
 import com.gani.lib.ui.Ui;
+import com.gani.lib.ui.alert.ToastUtils;
 import com.gani.lib.ui.view.GTextView;
 
 import org.web3j.abi.FunctionEncoder;
@@ -44,8 +45,11 @@ import org.web3j.protocol.core.methods.response.EthGetTransactionCount;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.core.methods.response.Web3ClientVersion;
+import org.web3j.protocol.exceptions.TransactionException;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.Transfer;
+import org.web3j.tx.response.PollingTransactionReceiptProcessor;
+import org.web3j.tx.response.TransactionReceiptProcessor;
 import org.web3j.utils.Convert;
 import org.web3j.utils.Numeric;
 
@@ -183,7 +187,9 @@ public class SendActivity extends GActivity {
                 if(cryptoAmount != null && cryptoAmount > 0){
 
                     InputMethodManager imm = (InputMethodManager) SendActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
-                    imm.hideSoftInputFromWindow(layout.getWindowToken(), 0);
+                    if(imm != null){
+                        imm.hideSoftInputFromWindow(layout.getWindowToken(), 0);
+                    }
 
                     String selectedCrypto = DbMap.get(SELECTED_CRYPTO_CURRENCY);
                     if(selectedCrypto != null && !selectedCrypto.contentEquals("ETH")){
@@ -194,9 +200,9 @@ public class SendActivity extends GActivity {
                             String from = creds.getAddress();
                             String to = addressTextView.getText().toString();
                             String contractAddress = Home.getContractAddress(selectedCrypto);
-                            String[] split = String.valueOf(cryptoAmount).split("\\."); //todo enable transactions with decimal amounts
-                            String amount = split[0];
-                            createErc20TransactionAmoutDialog(from, to, amount, contractAddress).show();
+                            if(!SendActivity.this.isDestroyed() || !SendActivity.this.isFinishing()){
+                                createErc20TransactionAmoutDialog(from, to, cryptoAmount.toString(), contractAddress).show();
+                            }
                         } catch (CipherException e) {
                             Log.e("fail", "exception " + e);
                         } catch (IOException e) {
@@ -204,7 +210,9 @@ public class SendActivity extends GActivity {
                         }
                     }
                     else{
-                        createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(cryptoAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(cryptoAmount.toString())).show();
+                        if(!SendActivity.this.isDestroyed() || !SendActivity.this.isFinishing()) {
+                            createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(cryptoAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(cryptoAmount.toString())).show();
+                        }
                     }
                 }
             }
@@ -273,34 +281,34 @@ public class SendActivity extends GActivity {
     }
 
     private AlertDialog createErc20TransactionAmoutDialog(final String from, final String to, final String amount, final String contractAddress){
-        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Confirm Trasaction Amount");
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50,50,50,50);
-        GTextView tokenAmount = new GTextView(this);
-        tokenAmount.text(amount.concat(" " + DbMap.get(SELECTED_CRYPTO_CURRENCY))).bold(); //todo avoid using room to get value
-        layout.addView(tokenAmount);
-        GTextView addressTextView = new GTextView(this);
-        addressTextView.text("To : ".concat(to)).bold();
-        layout.addView(addressTextView);
-        builder.setView(layout);
-        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                new AsyncErc20SendTask(SendActivity.this).execute(from, to, contractAddress, amount,  DbMap.get(WALLET_FILE_PATH));
-                confirmlayout.setVisibility(View.VISIBLE);
-                createLayout.setVisibility(View.GONE);
-            }
-        });
-        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-            }
-        });
+            final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Confirm Trasaction Amount");
+            LinearLayout layout = new LinearLayout(this);
+            layout.setOrientation(LinearLayout.VERTICAL);
+            layout.setPadding(50, 50, 50, 50);
+            GTextView tokenAmount = new GTextView(this);
+            tokenAmount.text(amount.concat(" " + DbMap.get(SELECTED_CRYPTO_CURRENCY))).bold(); //todo avoid using room to get value
+            layout.addView(tokenAmount);
+            GTextView addressTextView = new GTextView(this);
+            addressTextView.text("To : ".concat(to)).bold();
+            layout.addView(addressTextView);
+            builder.setView(layout);
+            builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    new AsyncErc20SendTask(SendActivity.this).execute(from, to, contractAddress, amount, DbMap.get(WALLET_FILE_PATH));
+                    confirmlayout.setVisibility(View.VISIBLE);
+                    createLayout.setVisibility(View.GONE);
+                }
+            });
+            builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    dialog.dismiss();
+                }
+            });
 
-        return builder.create();
+            return builder.create();
     }
 
 
@@ -328,7 +336,7 @@ public class SendActivity extends GActivity {
 
         public Exception send(String address, String amount, String walletPath) {
 
-            //todo allow the user to switch between generating a erc681 intent and sending straight from app
+            //todo allow the user to switch between generating an erc681 intent, sending straight from app or hardware wallet
             try {
                 context.generateERC681Url(address, null, amount);
                 return null;
@@ -338,8 +346,6 @@ public class SendActivity extends GActivity {
                 Web3j web3 = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));  // defaults to http://localhost:8545/
                 try {
                     Web3ClientVersion web3ClientVersion = web3.web3ClientVersion().sendAsync().get();
-                    String clientVersion = web3ClientVersion.getWeb3ClientVersion();
-
                     try {
 
                         Credentials credentials = WalletUtils.loadCredentials("atestpasswordhere", walletPath);
@@ -396,12 +402,14 @@ public class SendActivity extends GActivity {
         }
 
         public Exception sendErc20Token(String from, String to, String contractAddress, String amount, String walletPath) {
-            
+
+
+            BigDecimal weiValue = Convert.toWei(amount, Convert.Unit.ETHER);
+
             final Function function = new Function(
-                    "transferFrom",
-                    Arrays.<Type>asList(new org.web3j.abi.datatypes.Address(from),
-                            new org.web3j.abi.datatypes.Address(to),
-                            new org.web3j.abi.datatypes.generated.Uint256(new BigInteger(amount))),
+                    "transfer",
+                    Arrays.<Type>asList(new org.web3j.abi.datatypes.Address(to),
+                            new org.web3j.abi.datatypes.generated.Uint256(weiValue.toBigInteger())),
                     Collections.<TypeReference<?>>emptyList());
 
             String encodedFunction = FunctionEncoder.encode(function);
@@ -413,6 +421,8 @@ public class SendActivity extends GActivity {
                         .ethGetTransactionCount(from, DefaultBlockParameterName.LATEST)
                         .sendAsync()
                         .get();
+
+                TransactionReceiptProcessor processor = new PollingTransactionReceiptProcessor(web3, 1000, 200);
 
                 BigInteger nonce = transactionCount.getTransactionCount();
 
@@ -430,12 +440,19 @@ public class SendActivity extends GActivity {
 
 
                 EthSendTransaction transactionResponse = web3.ethSendRawTransaction(hexValue)
-                        .sendAsync().get();
+                        .sendAsync()
+                        .get();
 
                 String transactionHash = transactionResponse.getTransactionHash();
 
-                //todo do something with hash
-                GLog.e(getClass(), "transaction hash == " + transactionHash);
+                try {
+                    TransactionReceipt receipt = processor.waitForTransactionReceipt(transactionHash);
+                    context.handleTransactionReceipt(receipt);
+                }
+                catch (TransactionException e){
+                    ToastUtils.showNormal("Transaction Failed ".concat(e.getMessage()));
+                }
+
                 return null;
             }
             catch(ExecutionException e){
