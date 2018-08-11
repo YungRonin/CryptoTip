@@ -44,10 +44,31 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:gravity="center"
         android:layout_gravity="center"
         android:layout_alignParentBottom="true"
         android:padding="@dimen/padding_medium">
+        <android.support.v7.widget.CardView
+            android:id="@+id/trezor_button_card_view"
+            app:cardUseCompatPadding="true"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:cardElevation="5dp"
+            app:cardMaxElevation="8dp"
+            android:layout_gravity="center">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                <com.gani.lib.ui.view.GTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:id="@+id/trezor_button"
+                    android:text="Connect To Trezor"
+                    android:padding="@dimen/padding_small"/>
+            </FrameLayout>
+        </android.support.v7.widget.CardView>
         <android.support.v7.widget.CardView
             android:id="@+id/refresh_button_card_view"
             app:cardUseCompatPadding="true"

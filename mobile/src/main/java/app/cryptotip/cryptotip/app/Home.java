@@ -4,8 +4,13 @@ import android.app.PendingIntent;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.hardware.usb.UsbConstants;
 import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbDeviceConnection;
+import android.hardware.usb.UsbEndpoint;
+import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
+import android.hardware.usb.UsbRequest;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.content.res.ResourcesCompat;
@@ -21,6 +26,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.gani.lib.http.GRestCallback;
 import com.gani.lib.http.GRestResponse;
@@ -28,7 +34,12 @@ import com.gani.lib.http.HttpAsyncGet;
 import com.gani.lib.http.HttpHook;
 import com.gani.lib.logging.GLog;
 import com.gani.lib.ui.ProgressIndicator;
+import com.gani.lib.ui.alert.ToastUtils;
 import com.gani.lib.ui.view.GTextView;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Message;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.WriterException;
@@ -49,6 +60,7 @@ import org.web3j.abi.datatypes.Type;
 import org.web3j.crypto.CipherException;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletUtils;
+import org.web3j.exceptions.MessageDecodingException;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.Web3jFactory;
 import org.web3j.protocol.core.DefaultBlockParameterName;
@@ -63,12 +75,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -79,6 +93,7 @@ import app.cryptotip.cryptotip.app.transaction.TransactionListActivity;
 
 import static android.graphics.Color.BLACK;
 import static android.graphics.Color.WHITE;
+import static com.satoshilabs.trezor.lib.TrezorManager.parseMessageFromBytes;
 
 public class Home extends AppCompatActivity {
     private String pubKey;
@@ -88,10 +103,13 @@ public class Home extends AppCompatActivity {
     private String cryptoBalance;
     private String selectedFiatCurrency;
     private String selectedCryptoCurrency;
+    private ImageView pubKeyimageView;
+    private TextView pubKeyTview;
     private GTextView fiatBalanceTextView;
     private GTextView cryptoBalanceTextView;
     private Drawer activityDrawer;
     private Drawer settingsDrawer;
+    private TrezorDevice trezorDevice;
     protected DrawerLayout mDrawerLayout;
     private static final int CURRENCY_CHANGE = 555;
     public static final String WALLET_FILE_PATH = "walletFilePath";
@@ -126,9 +144,9 @@ public class Home extends AppCompatActivity {
     @Override
     public void onPostCreate(@Nullable Bundle savedinstaceState) {
         super.onPostCreate(savedinstaceState);
-        TextView pubKeyTview = findViewById(R.id.public_key_text_view);
+        pubKeyTview = findViewById(R.id.public_key_text_view);
         pubKeyTview.setTextIsSelectable(true);
-        ImageView pubKeyimageView = findViewById(R.id.public_key_qr_code);
+        pubKeyimageView = findViewById(R.id.public_key_qr_code);
         cryptoBalanceTextView = findViewById(R.id.eth_balance_text_view);
         fiatBalanceTextView = findViewById(R.id.fiat_balance_text_view);
 
@@ -175,6 +193,13 @@ public class Home extends AppCompatActivity {
             }
         });
 
+        CardView trezorButton = findViewById(R.id.trezor_button_card_view);
+        trezorButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                accessTrezor();
+            }
+        });
     }
 
     private void refresh(){
@@ -191,14 +216,29 @@ public class Home extends AppCompatActivity {
 
         }
 
+        if(pubKey != null) {
+            try {
+                Bitmap bmp = encodeAsBitmap(pubKey);
+                pubKeyimageView.setImageBitmap(bmp);
+            } catch (WriterException e) {
+                Log.e("fail", "exception " + e);
+            }
+            pubKeyTview.setText(pubKey);
+        }
+
         cryptoBalanceTextView.setTextIsSelectable(true);
         if(selectedCryptoCurrency.contentEquals("ETH")) {
-            if (ethGBalance != null) {
-                BigInteger bigIntBal = ethGBalance.getBalance();
-                cryptoBalance = new BalanceHelper().convertWeiToEth(bigIntBal);
-                cryptoBalanceTextView.setText(selectedCryptoCurrency.concat(" Balance : " + cryptoBalance));
-            } else {
-                cryptoBalanceTextView.setText("failed to retrieve balance");
+            try {
+                if (ethGBalance != null) {
+                    BigInteger bigIntBal = ethGBalance.getBalance();
+                    cryptoBalance = new BalanceHelper().convertWeiToEth(bigIntBal);
+                    cryptoBalanceTextView.setText(selectedCryptoCurrency.concat(" Balance : " + cryptoBalance));
+                } else {
+                    cryptoBalanceTextView.setText("failed to retrieve balance");
+                }
+            }
+            catch(MessageDecodingException e){
+                GLog.e(getClass(), "Error getting eth balance " + e);
             }
         }
         else{
@@ -383,23 +423,111 @@ public class Home extends AppCompatActivity {
             }
             else{
                 if (!usbManager.hasPermission(usbDevice)) {
-                    if (deviceWithoutPermission == null)
-                        deviceWithoutPermission = usbDevice;
+                    usbManager.requestPermission(usbDevice, PendingIntent.getBroadcast(this, 0, new Intent(TrezorManager.UsbPermissionReceiver.ACTION), 0));
+                    deviceWithoutPermission = usbDevice;
+                }
+                else{
+                    doTrezorThings(usbDevice, usbManager);
                 }
             }
+        }
 
-            usbManager.requestPermission(deviceWithoutPermission, PendingIntent.getBroadcast(this, 0, new Intent(TrezorManager.UsbPermissionReceiver.ACTION), 0));
+        if(deviceWithoutPermission != null){
+            doTrezorThings(deviceWithoutPermission, usbManager);
+        }
+    }
 
-            String state = String.valueOf(TrezorMessage.Initialize.newBuilder().build().getState());
-            Boolean deviceIsInitialized = TrezorMessage.LoadDevice.newBuilder().build().isInitialized();
-            TrezorMessage.EthereumGetAddress address = TrezorMessage.EthereumGetAddress.getDefaultInstance();
+    private void doTrezorThings(UsbDevice device, UsbManager usbManager){
 
-            new AlertDialog.Builder(this).setTitle("Status")
-                    .setMessage("trezor state ".concat(state)
-                            .concat("\ntrezor device is initialized ".concat(deviceIsInitialized.toString())
-                                    .concat("\ntrezor eth address ".concat(address.toString()))))
-                    .create()
-                    .show();
+        UsbDeviceConnection connection = usbManager.openDevice(device);
+        UsbInterface usbInterface = device.getInterface(0);
+        UsbEndpoint readEndpoint = null, writeEndpoint = null;
+
+        for (int i = 0; i < usbInterface.getEndpointCount(); i++) {
+            UsbEndpoint ep = usbInterface.getEndpoint(i);
+            if (readEndpoint == null && ep.getType() == UsbConstants.USB_ENDPOINT_XFER_INT && ep.getAddress() == 0x81) { // number = 1 ; dir = USB_DIR_IN
+                readEndpoint = ep;
+                continue;
+            }
+            if (writeEndpoint == null && ep.getType() == UsbConstants.USB_ENDPOINT_XFER_INT && (ep.getAddress() == 0x01 || ep.getAddress() == 0x02)) { // number = 1 ; dir = USB_DIR_OUT
+                writeEndpoint = ep;
+            }
+        }
+        if (readEndpoint == null) {
+            ToastUtils.showNormal("tryGetDevice: Could not find read endpoint", Toast.LENGTH_LONG);
+        }
+        if (writeEndpoint == null) {
+            ToastUtils.showNormal("tryGetDevice: Could not find write endpoint", Toast.LENGTH_LONG);
+        }
+        if (readEndpoint.getMaxPacketSize() != 64) {
+            ToastUtils.showNormal("tryGetDevice: Wrong packet size for read endpoint", Toast.LENGTH_LONG);
+        }
+        if (writeEndpoint.getMaxPacketSize() != 64) {
+            ToastUtils.showNormal("tryGetDevice: Wrong packet size for write endpoint", Toast.LENGTH_LONG);
+        }
+
+
+        if (connection == null) {
+            ToastUtils.showNormal("tryGetDevice: could not open connection", Toast.LENGTH_LONG);
+        } else {
+            if (!connection.claimInterface(usbInterface, true)) {
+                ToastUtils.showNormal("tryGetDevice: could not claim interface", Toast.LENGTH_LONG);
+
+            } else {
+                trezorDevice = new TrezorDevice(device.getDeviceName(), connection.getSerial(), connection, usbInterface, readEndpoint, writeEndpoint);
+            }
+        }
+
+        if(trezorDevice != null){
+
+
+            TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
+            TrezorMessage.EthereumGetAddress ethReq = TrezorMessage.EthereumGetAddress.newBuilder().build();
+            try {
+                Message resp = trezorDevice.sendMessage(req);
+                if (resp != null) {
+//                        ToastUtils.showNormal("success ".concat(resp.getClass().getSimpleName()), Toast.LENGTH_LONG);
+
+                }
+                Message ethResp = trezorDevice.sendMessage(ethReq);
+                if (resp != null) {
+                    Map<Descriptors.FieldDescriptor, Object> map = ethResp.getAllFields();
+
+                    if(!map.isEmpty()){
+//                        LinkedList<String> keysAndValues = new LinkedList();
+//                        Iterator it = map.entrySet().iterator();
+//                        while (it.hasNext()){
+//                            Map.Entry pair = (Map.Entry)it.next();
+//                            keysAndValues.add(pair.getKey().toString());
+//                            keysAndValues.add(pair.getValue().toString());
+//                        }
+//
+//                        String result ="Result : ";
+//                        for(String value : keysAndValues){
+//                            result = result.concat(", ".concat(value));
+//                        }
+
+                        ByteString ethAddress = (ByteString) map.entrySet().iterator().next().getValue();
+                        byte[] byteArray = ethAddress.toByteArray();
+
+                        String allTheBytes = "0x";
+                        for(byte b : byteArray){
+                            String byteString = Integer.toHexString(b & 0xFF);
+                            allTheBytes = allTheBytes.concat(byteString);
+                        }
+
+                        new AlertDialog.Builder(this).setTitle("Status")
+                                .setMessage(allTheBytes)
+                                .create()
+                                .show();
+
+                        pubKey = allTheBytes;
+                    }
+                }
+            }
+            catch (InvalidProtocolBufferException e){
+                ToastUtils.showNormal("fail ".concat(e.getMessage()), Toast.LENGTH_LONG);
+            }
         }
     }
 
@@ -503,8 +631,6 @@ public class Home extends AppCompatActivity {
                 })
                 .build();
 
-
-
         settingsDrawer = new DrawerBuilder()
                 .withActivity(this)
                 .withDisplayBelowStatusBar(true)
@@ -530,5 +656,156 @@ public class Home extends AppCompatActivity {
                 settingsDrawer.openDrawer();
             }
         });
+    }
+
+    private static class TrezorDevice {
+        private static final String TAG = TrezorDevice.class.getSimpleName();
+
+        private final String deviceName;
+        private final String serial;
+
+        // next fields are only valid until calling close()
+        private UsbDeviceConnection usbConnection;
+        private UsbInterface usbInterface;
+        private UsbEndpoint readEndpoint;
+        private UsbEndpoint writeEndpoint;
+
+        TrezorDevice(String deviceName,
+                     String serial,
+                     UsbDeviceConnection usbConnection,
+                     UsbInterface usbInterface,
+                     UsbEndpoint readEndpoint,
+                     UsbEndpoint writeEndpoint) {
+            this.deviceName = deviceName;
+            this.serial = serial;
+            this.usbConnection = usbConnection;
+            this.usbInterface = usbInterface;
+            this.readEndpoint = readEndpoint;
+            this.writeEndpoint = writeEndpoint;
+        }
+
+        @Override
+        public String toString() {
+            return "TREZOR(path:" + this.deviceName + " serial:" + this.serial + ")";
+        }
+
+        Message sendMessage(Message msg) throws InvalidProtocolBufferException {
+            if (usbConnection == null)
+                throw new IllegalStateException(TAG + ": sendMessage: usbConnection already closed, cannot send message");
+
+            messageWrite(msg);
+            return messageRead();
+        }
+
+        void close() {
+            if (this.usbConnection != null) {
+                try {
+                    usbConnection.releaseInterface(usbInterface);
+                }
+                catch (Exception ex) {}
+                try {
+                    usbConnection.close();
+                }
+                catch (Exception ex) {}
+
+                usbConnection = null;
+                usbInterface = null;
+                readEndpoint = null;
+                writeEndpoint = null;
+            }
+        }
+
+        //
+        // PRIVATE
+        //
+
+        private void messageWrite(Message msg) {
+            int msg_size = msg.getSerializedSize();
+            String msg_name = msg.getClass().getSimpleName();
+            int msg_id = TrezorMessage.MessageType.valueOf("MessageType_" + msg_name).getNumber();
+            ToastUtils.showNormal(String.format("messageWrite: Got message: %s (%d bytes)", msg_name, msg_size), Toast.LENGTH_LONG);
+
+            ByteBuffer data = ByteBuffer.allocate(msg_size + 1024); // 32768);
+            data.put((byte) '#');
+            data.put((byte) '#');
+            data.put((byte) ((msg_id >> 8) & 0xFF));
+            data.put((byte) (msg_id & 0xFF));
+            data.put((byte) ((msg_size >> 24) & 0xFF));
+            data.put((byte) ((msg_size >> 16) & 0xFF));
+            data.put((byte) ((msg_size >> 8) & 0xFF));
+            data.put((byte) (msg_size & 0xFF));
+            data.put(msg.toByteArray());
+            while (data.position() % 63 > 0) {
+                data.put((byte) 0);
+            }
+            UsbRequest request = new UsbRequest();
+            request.initialize(usbConnection, writeEndpoint);
+            int chunks = data.position() / 63;
+            ToastUtils.showNormal(String.format("messageWrite: Writing %d chunks", chunks), Toast.LENGTH_LONG);
+
+            data.rewind();
+            for (int i = 0; i < chunks; i++) {
+                byte[] buffer = new byte[64];
+                buffer[0] = (byte) '?';
+                data.get(buffer, 1, 63);
+                request.queue(ByteBuffer.wrap(buffer), 64);
+                usbConnection.requestWait();
+            }
+        }
+
+        private Message messageRead() throws InvalidProtocolBufferException {
+            ByteBuffer data = null;//ByteBuffer.allocate(32768);
+            ByteBuffer buffer = ByteBuffer.allocate(64);
+            UsbRequest request = new UsbRequest();
+            request.initialize(usbConnection, readEndpoint);
+            TrezorMessage.MessageType type;
+            int msg_size;
+            int invalidChunksCounter = 0;
+
+            for (; ; ) {
+                request.queue(buffer, 64);
+                usbConnection.requestWait();
+                byte[] b = buffer.array();
+                ToastUtils.showNormal(String.format("messageRead: Read chunk: %d bytes", b.length), Toast.LENGTH_LONG);
+
+                if (b.length < 9 || b[0] != (byte) '?' || b[1] != (byte) '#' || b[2] != (byte) '#') {
+                    if (invalidChunksCounter++ > 5)
+                        throw new InvalidProtocolBufferException("messageRead: too many invalid chunks");
+                    continue;
+                }
+                if (b[0] != (byte) '?' || b[1] != (byte) '#' || b[2] != (byte) '#')
+                    continue;
+
+                type = TrezorMessage.MessageType.valueOf((((int)b[3] & 0xFF) << 8) + ((int)b[4] & 0xFF));
+                msg_size = (((int)b[5] & 0xFF) << 24)
+                        + (((int)b[6] & 0xFF) << 16)
+                        + (((int)b[7] & 0xFF) << 8)
+                        + ((int)b[8] & 0xFF);
+                data = ByteBuffer.allocate(msg_size + 1024);
+                data.put(b, 9, b.length - 9);
+                break;
+            }
+
+            invalidChunksCounter = 0;
+
+            while (data.position() < msg_size) {
+                request.queue(buffer, 64);
+                usbConnection.requestWait();
+                byte[] b = buffer.array();
+                ToastUtils.showNormal(String.format("messageRead: Read chunk (cont): %d bytes", b.length), Toast.LENGTH_LONG);
+
+                if (b[0] != (byte) '?') {
+                    if (invalidChunksCounter++ > 5)
+                        throw new InvalidProtocolBufferException("messageRead: too many invalid chunks (2)");
+                    continue;
+                }
+                data.put(b, 1, b.length - 1);
+            }
+
+            byte[] msgData = Arrays.copyOfRange(data.array(), 0, msg_size);
+
+            ToastUtils.showNormal(String.format("parseMessageFromBytes: Parsing %s (%d bytes):", type, msgData.length), Toast.LENGTH_LONG);
+            return parseMessageFromBytes(type, msgData);
+        }
     }
 }
