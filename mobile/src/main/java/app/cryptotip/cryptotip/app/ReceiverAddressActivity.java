@@ -55,28 +55,28 @@ public class ReceiverAddressActivity extends GActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    validAddressEntered = WalletUtils.isValidAddress(s.toString());
-                    if(validAddressEntered){
-                        sendButton.text("Start Transaction").bold();
-                        sendButton.setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View v) {
-                                Intent intent = SendActivity.intent(ReceiverAddressActivity.this);
-                                intent.putExtra(RECIEVER_ADDRESS, addressInput.getText().toString());
-                                startActivity(intent, null);
-                            }
-                        });
-                    }
-                    else{
-                        sendButton.text("Please enter valid address").bold();
-                        sendButton.setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View v) {
-                                ToastUtils.showNormal("Address entered is not a valid Ethereum address.");
-                            }
-                        });
-                    }
+                validAddressEntered = WalletUtils.isValidAddress(s.toString());
+                if(validAddressEntered){
+                    sendButton.text("Start Transaction").bold();
+                    sendButton.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            Intent intent = SendActivity.intent(ReceiverAddressActivity.this);
+                            intent.putExtra(RECIEVER_ADDRESS, addressInput.getText().toString());
+                            startActivity(intent, null);
+                        }
+                    });
                 }
+                else{
+                    sendButton.text("Please enter valid address").bold();
+                    sendButton.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            ToastUtils.showNormal("Address entered is not a valid Ethereum address.");
+                        }
+                    });
+                }
+            }
 
             @Override
             public void afterTextChanged(Editable s) {

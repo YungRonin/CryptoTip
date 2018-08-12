@@ -481,8 +481,8 @@ public class Home extends AppCompatActivity {
         if(trezorDevice != null){
 
 
-            TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
-            TrezorMessage.EthereumGetAddress ethReq = TrezorMessage.EthereumGetAddress.newBuilder().build();
+                TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
+                TrezorMessage.EthereumGetAddress ethReq = TrezorMessage.EthereumGetAddress.newBuilder().build();
             try {
                 Message resp = trezorDevice.sendMessage(req);
                 if (resp != null) {
@@ -526,12 +526,12 @@ public class Home extends AppCompatActivity {
                 }
             }
             catch (InvalidProtocolBufferException e){
-                ToastUtils.showNormal("fail ".concat(e.getMessage()), Toast.LENGTH_LONG);
+                ToastUtils.showNormal("Failed to retrieve address ".concat(e.getMessage()), Toast.LENGTH_LONG);
             }
         }
     }
 
-    private Boolean isDeviceTrezor(UsbDevice usbDevice){
+    public static Boolean isDeviceTrezor(UsbDevice usbDevice){
         if (usbDevice.getVendorId() == 0x1209) {
             return usbDevice.getProductId() == 0x53c0 || usbDevice.getProductId() == 0x53c1;
         }
@@ -658,7 +658,7 @@ public class Home extends AppCompatActivity {
         });
     }
 
-    private static class TrezorDevice {
+    public static class TrezorDevice {
         private static final String TAG = TrezorDevice.class.getSimpleName();
 
         private final String deviceName;
@@ -807,5 +807,9 @@ public class Home extends AppCompatActivity {
             ToastUtils.showNormal(String.format("parseMessageFromBytes: Parsing %s (%d bytes):", type, msgData.length), Toast.LENGTH_LONG);
             return parseMessageFromBytes(type, msgData);
         }
+    }
+
+    public TrezorDevice getTrezorDevice() {
+        return trezorDevice;
     }
 }
