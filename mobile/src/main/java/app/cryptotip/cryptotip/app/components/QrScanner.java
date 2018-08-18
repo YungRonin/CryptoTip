@@ -61,7 +61,7 @@ public class QrScanner {
         detector.setProcessor(new Detector.Processor<Barcode>() {
             @Override
             public void release() {
-                //cameraSource.release();
+
             }
 
             @Override
@@ -75,7 +75,7 @@ public class QrScanner {
                             ((EditText)layout.findViewById(R.id.address_input_field)).setText(barcodes.valueAt(0).displayValue, TextView.BufferType.NORMAL);
                         }
                     });
-                    cameraSource.stop();
+//                    cameraSource.stop();
                 }
             }
         });
@@ -147,7 +147,7 @@ public class QrScanner {
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
                 if(cameraSource != null){
-                    cameraSource.release();
+                    //cameraSource.release();
                 }
                 cameraSource = null;
             }
