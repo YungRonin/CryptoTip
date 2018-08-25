@@ -17,6 +17,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.design.widget.TextInputEditText;
 import android.support.design.widget.TextInputLayout;
+import android.support.v7.widget.CardView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -32,6 +33,8 @@ import com.gani.lib.screen.GActivity;
 import com.gani.lib.ui.Ui;
 import com.gani.lib.ui.alert.ToastUtils;
 import com.gani.lib.ui.view.GTextView;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.satoshilabs.trezor.lib.TrezorManager;
@@ -48,16 +51,13 @@ import org.web3j.crypto.TransactionEncoder;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.Web3jFactory;
-import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.response.EthGetTransactionCount;
-import org.web3j.protocol.core.methods.response.EthSendRawTransaction;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.core.methods.response.Web3ClientVersion;
 import org.web3j.protocol.exceptions.TransactionException;
 import org.web3j.protocol.http.HttpService;
-import org.web3j.tx.ManagedTransaction;
 import org.web3j.tx.Transfer;
 import org.web3j.tx.response.PollingTransactionReceiptProcessor;
 import org.web3j.tx.response.TransactionReceiptProcessor;
@@ -65,15 +65,17 @@ import org.web3j.utils.Convert;
 import org.web3j.utils.Numeric;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import app.cryptotip.cryptotip.app.database.DbMap;
-import app.cryptotip.cryptotip.app.transaction.Transaction;
 import app.cryptotip.cryptotip.app.view.MyScreenView;
 
 import static app.cryptotip.cryptotip.app.Home.FIAT_PRICE;
@@ -96,11 +98,13 @@ public class SendActivity extends GActivity {
     private TextInputLayout fiatInputLayout;
     private TextInputEditText fiatAmountEditText;
     private GTextView sendButton;
+    private CardView trezorCardView;
+    private GTextView trezorButtonTextView;
     private boolean fiatSelected;
     private Double cryptoAmount;
     private Double fiatValue;
     private Home.TrezorDevice trezorDevice;
-
+    private String trezorPublicKey;
 
     public static Intent intent(Context context) {
         return new Intent(context, SendActivity.class);
@@ -124,10 +128,12 @@ public class SendActivity extends GActivity {
         addressTextView = layout.findViewById(R.id.address_text_view);
         addressTextView.setText(getIntent().getExtras().getString(RECIEVER_ADDRESS));
         sendButton = layout.findViewById(R.id.send_transaction_button);
+        trezorCardView = layout.findViewById(R.id.trezor_card_view);
+        trezorButtonTextView = layout.findViewById(R.id.trezor_send_transaction_button);
 
         final String currency = DbMap.get(SELECTED_FIAT_CURRENCY);
         final String price = DbMap.get(FIAT_PRICE);
-        priceTextView.setText("1 ".concat(DbMap.get(SELECTED_CRYPTO_CURRENCY).concat(" = " + price + " " + currency)));
+        priceTextView.setText("1 ".concat(DbMap.get(SELECTED_CRYPTO_CURRENCY)));//.concat(" = " + price + " " + currency)));
 
         fiatInputLayout.setHint(currency);
         fiatAmountEditText.addTextChangedListener(new TextWatcher() {
@@ -161,7 +167,8 @@ public class SendActivity extends GActivity {
             }
         });
 
-        cryptoInputLayout.setHint(DbMap.get(SELECTED_CRYPTO_CURRENCY));
+        String selectedCryptoCurrency = DbMap.get(SELECTED_CRYPTO_CURRENCY);
+        cryptoInputLayout.setHint(selectedCryptoCurrency);
         cryptoAmountEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -215,7 +222,7 @@ public class SendActivity extends GActivity {
                             String to = addressTextView.getText().toString();
                             String contractAddress = Home.getContractAddress(selectedCrypto);
                             if(!SendActivity.this.isDestroyed() || !SendActivity.this.isFinishing()){
-                                createErc20TransactionAmoutDialog(from, to, cryptoAmount.toString(), contractAddress).show();
+                                //createErc20TransactionAmoutDialog(from, to, cryptoAmount.toString(), contractAddress).show();
                             }
                         } catch (CipherException e) {
                             Log.e("fail", "exception " + e);
@@ -225,16 +232,37 @@ public class SendActivity extends GActivity {
                     }
                     else{
                         if(!SendActivity.this.isDestroyed() || !SendActivity.this.isFinishing()) {
-                            createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(cryptoAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(cryptoAmount.toString())).show();
+                            //createTransactionAmoutDialog(addressTextView.getText().toString(), String.valueOf(cryptoAmount), currency.concat(" : " + fiatValue), "ETH : ".concat(cryptoAmount.toString())).show();
                         }
                     }
                 }
             }
         });
-    }
 
-    private void detectTransactionStatus(){
+        trezorButtonTextView.text("Send with Trezor");
+        trezorCardView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(cryptoAmount != null && cryptoAmount > 0){
 
+                    InputMethodManager imm = (InputMethodManager) SendActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if(imm != null){
+                        imm.hideSoftInputFromWindow(layout.getWindowToken(), 0);
+                    }
+
+                    String selectedCrypto = DbMap.get(SELECTED_CRYPTO_CURRENCY);
+                    if(selectedCrypto != null && !selectedCrypto.contentEquals("ETH")){
+
+                        //todo add erc20 support
+                    }
+                    else{
+                        if(!SendActivity.this.isDestroyed() || !SendActivity.this.isFinishing()) {
+                            initTrezor(addressTextView.getText().toString(), cryptoAmount.toString());
+                        }
+                    }
+                }
+            }
+        });
     }
 
     private void handleTransactionReceipt(final TransactionReceipt transactionReceipt){
@@ -280,7 +308,7 @@ public class SendActivity extends GActivity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 new AsyncSendTask(SendActivity.this).execute(address, ethAmount, DbMap.get(WALLET_FILE_PATH));
-                confirmlayout.setVisibility(View.VISIBLE);
+//                confirmlayout.setVisibility(View.VISIBLE);
                 createLayout.setVisibility(View.GONE);
             }
         });
@@ -311,7 +339,7 @@ public class SendActivity extends GActivity {
                 @Override
                 public void onClick(DialogInterface dialog, int which) {
                     new AsyncErc20SendTask(SendActivity.this).execute(from, to, contractAddress, amount, DbMap.get(WALLET_FILE_PATH));
-                    confirmlayout.setVisibility(View.VISIBLE);
+//                    confirmlayout.setVisibility(View.VISIBLE);
                     createLayout.setVisibility(View.GONE);
                 }
             });
@@ -325,114 +353,41 @@ public class SendActivity extends GActivity {
             return builder.create();
     }
 
-    private void accessTrezor() {
-
-        UsbManager usbManager = (UsbManager) this.getSystemService(USB_SERVICE);
-
-        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
-
-        UsbDevice deviceWithoutPermission = null;
-
-        for (UsbDevice usbDevice : deviceList.values()) {
-            // check if the device is TREZOR
-            Boolean deviceIsTrezor = Home.isDeviceTrezor(usbDevice);
-            if (deviceIsTrezor == null || !deviceIsTrezor){
-
+    private void createTrezorTransactionAmoutDialog(final String to, final String amount, final BigInteger noOnce){
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Confirm Trasaction Amount");
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 50, 50, 50);
+        GTextView tokenAmount = new GTextView(this);
+        tokenAmount.text(amount.concat(" " + DbMap.get(SELECTED_CRYPTO_CURRENCY))).bold(); //todo avoid using room to get value
+        layout.addView(tokenAmount);
+        GTextView addressTextView = new GTextView(this);
+        addressTextView.text("To : ".concat(to)).bold();
+        layout.addView(addressTextView);
+        builder.setView(layout);
+        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                sendFromTrezor(to, amount, noOnce);
+                confirmlayout.setVisibility(View.VISIBLE);
+                createLayout.setVisibility(View.GONE);
             }
-            else{
-                if (!usbManager.hasPermission(usbDevice)) {
-                    usbManager.requestPermission(usbDevice, PendingIntent.getBroadcast(this, 0, new Intent(TrezorManager.UsbPermissionReceiver.ACTION), 0));
-                    deviceWithoutPermission = usbDevice;
-                }
-                else{
-                    setUpTrezor(usbDevice, usbManager);
-                }
+        });
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
             }
-        }
+        });
 
-        if(deviceWithoutPermission != null){
-            setUpTrezor(deviceWithoutPermission, usbManager);
-        }
+        Ui.run(new Runnable() {
+            @Override
+            public void run() {
+                builder.create().show();
+            }
+        });
     }
-
-    private void setUpTrezor(UsbDevice device, UsbManager usbManager){
-        UsbDeviceConnection connection = usbManager.openDevice(device);
-        UsbInterface usbInterface = device.getInterface(0);
-        UsbEndpoint readEndpoint = null, writeEndpoint = null;
-
-        for (int i = 0; i < usbInterface.getEndpointCount(); i++) {
-            UsbEndpoint ep = usbInterface.getEndpoint(i);
-            if (readEndpoint == null && ep.getType() == UsbConstants.USB_ENDPOINT_XFER_INT && ep.getAddress() == 0x81) { // number = 1 ; dir = USB_DIR_IN
-                readEndpoint = ep;
-                continue;
-            }
-            if (writeEndpoint == null && ep.getType() == UsbConstants.USB_ENDPOINT_XFER_INT && (ep.getAddress() == 0x01 || ep.getAddress() == 0x02)) { // number = 1 ; dir = USB_DIR_OUT
-                writeEndpoint = ep;
-            }
-        }
-        if (readEndpoint == null) {
-            ToastUtils.showNormal("tryGetDevice: Could not find read endpoint", Toast.LENGTH_LONG);
-        }
-        if (writeEndpoint == null) {
-            ToastUtils.showNormal("tryGetDevice: Could not find write endpoint", Toast.LENGTH_LONG);
-        }
-        if (readEndpoint.getMaxPacketSize() != 64) {
-            ToastUtils.showNormal("tryGetDevice: Wrong packet size for read endpoint", Toast.LENGTH_LONG);
-        }
-        if (writeEndpoint.getMaxPacketSize() != 64) {
-            ToastUtils.showNormal("tryGetDevice: Wrong packet size for write endpoint", Toast.LENGTH_LONG);
-        }
-
-
-        if (connection == null) {
-            ToastUtils.showNormal("tryGetDevice: could not open connection", Toast.LENGTH_LONG);
-        } else {
-            if (!connection.claimInterface(usbInterface, true)) {
-                ToastUtils.showNormal("tryGetDevice: could not claim interface", Toast.LENGTH_LONG);
-
-            } else {
-                trezorDevice = new Home.TrezorDevice(device.getDeviceName(), connection.getSerial(), connection, usbInterface, readEndpoint, writeEndpoint);
-            }
-        }
-    }
-
-    private void sendFromTrezor(String from, String amount, String to){
-        Web3j web3 = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));  // defaults to http://localhost:8545/
-
-        BigDecimal weiValue = Convert.toWei(amount, Convert.Unit.ETHER);
-        try {
-            //todo getnoonce is asyc wait for result before continuing execution
-//            org.web3j.protocol.core.methods.request.Transaction tx = org.web3j.protocol.core.methods.request.Transaction.createEtherTransaction(from, getNonce(), GAS_PRICE, GAS_LIMIT, to, weiValue.toBigInteger());
-            RawTransaction rawtrans = RawTransaction.createEtherTransaction(getNonce(from, web3), GAS_PRICE, GAS_LIMIT, to, weiValue.toBigInteger());
-
-            byte[] trans = TransactionEncoder.encode(rawtrans);
-
-            TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
-
-            try {
-                trezorDevice.sendMessage(req);
-
-                TrezorMessage.EthereumTxRequest ethReq = TrezorMessage.EthereumTxRequest.parseFrom(trans);
-            }
-            catch (InvalidProtocolBufferException e){
-                ToastUtils.showNormal("BufferException : ".concat(e.getMessage()), Toast.LENGTH_LONG);
-            }
-        }
-        catch(InterruptedException e){
-            ToastUtils.showNormal("Interupted : ".concat(e.getMessage()), Toast.LENGTH_LONG);
-        }
-        catch(ExecutionException e){
-            ToastUtils.showNormal("Execution Failed : ".concat(e.getMessage()), Toast.LENGTH_LONG);
-        }
-    }
-
-    protected BigInteger getNonce(String address, Web3j web3j) throws InterruptedException, ExecutionException {
-        EthGetTransactionCount ethGetTransactionCount = web3j.ethGetTransactionCount(
-                address, DefaultBlockParameterName.LATEST).sendAsync().get();
-
-        return ethGetTransactionCount.getTransactionCount();
-    }
-
 
     public static class AsyncSendTask extends AsyncTask<String, String, Exception> {
         SendActivity context;
@@ -619,5 +574,238 @@ public class SendActivity extends GActivity {
         final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         this.startActivity(intent);
         return url;
+    }
+
+    private void initTrezor(String to, String amount) {
+
+        UsbManager usbManager = (UsbManager) this.getSystemService(USB_SERVICE);
+
+        HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+
+        UsbDevice deviceWithoutPermission = null;
+
+        for (UsbDevice usbDevice : deviceList.values()) {
+            // check if the device is TREZOR
+            Boolean deviceIsTrezor = Home.isDeviceTrezor(usbDevice);
+            if (deviceIsTrezor == null || !deviceIsTrezor){
+
+            }
+            else{
+                if (!usbManager.hasPermission(usbDevice)) {
+                    usbManager.requestPermission(usbDevice, PendingIntent.getBroadcast(this, 0, new Intent(TrezorManager.UsbPermissionReceiver.ACTION), 0));
+                    deviceWithoutPermission = usbDevice;
+                }
+                else{
+                    setUpTrezor(usbDevice, usbManager, to, amount);
+                }
+            }
+        }
+
+        if(deviceWithoutPermission != null){
+            setUpTrezor(deviceWithoutPermission, usbManager, to, amount);
+        }
+    }
+
+    private void setUpTrezor(UsbDevice device, UsbManager usbManager, String to, String amount){
+        UsbDeviceConnection connection = usbManager.openDevice(device);
+        UsbInterface usbInterface = device.getInterface(0);
+        UsbEndpoint readEndpoint = null, writeEndpoint = null;
+
+        for (int i = 0; i < usbInterface.getEndpointCount(); i++) {
+            UsbEndpoint ep = usbInterface.getEndpoint(i);
+            if (readEndpoint == null && ep.getType() == UsbConstants.USB_ENDPOINT_XFER_INT && ep.getAddress() == 0x81) { // number = 1 ; dir = USB_DIR_IN
+                readEndpoint = ep;
+                continue;
+            }
+            if (writeEndpoint == null && ep.getType() == UsbConstants.USB_ENDPOINT_XFER_INT && (ep.getAddress() == 0x01 || ep.getAddress() == 0x02)) { // number = 1 ; dir = USB_DIR_OUT
+                writeEndpoint = ep;
+            }
+        }
+        if (readEndpoint == null) {
+            ToastUtils.showNormal("tryGetDevice: Could not find read endpoint", Toast.LENGTH_LONG);
+        }
+        if (writeEndpoint == null) {
+            ToastUtils.showNormal("tryGetDevice: Could not find write endpoint", Toast.LENGTH_LONG);
+        }
+        if (readEndpoint.getMaxPacketSize() != 64) {
+            ToastUtils.showNormal("tryGetDevice: Wrong packet size for read endpoint", Toast.LENGTH_LONG);
+        }
+        if (writeEndpoint.getMaxPacketSize() != 64) {
+            ToastUtils.showNormal("tryGetDevice: Wrong packet size for write endpoint", Toast.LENGTH_LONG);
+        }
+
+
+        if (connection == null) {
+            ToastUtils.showNormal("tryGetDevice: could not open connection", Toast.LENGTH_LONG);
+        } else {
+            if (!connection.claimInterface(usbInterface, true)) {
+                ToastUtils.showNormal("tryGetDevice: could not claim interface", Toast.LENGTH_LONG);
+
+            } else {
+                trezorDevice = new Home.TrezorDevice(device.getDeviceName(), connection.getSerial(), connection, usbInterface, readEndpoint, writeEndpoint);
+                setTrezorPublicKey(to, amount);
+            }
+        }
+    }
+
+    private void setTrezorPublicKey(String to, String amount){
+        if(trezorDevice != null) {
+
+
+            TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
+            TrezorMessage.EthereumGetAddress ethReq = TrezorMessage.EthereumGetAddress.newBuilder().build();
+            try {
+                Message resp = trezorDevice.sendMessage(req);
+                if (resp != null) {
+//                        ToastUtils.showNormal("success ".concat(resp.getClass().getSimpleName()), Toast.LENGTH_LONG);
+
+                }
+                Message ethResp = trezorDevice.sendMessage(ethReq);
+                if (resp != null) {
+                    Map<Descriptors.FieldDescriptor, Object> map = ethResp.getAllFields();
+
+                    if (!map.isEmpty()) {
+
+                        ByteString ethAddress = (ByteString) map.entrySet().iterator().next().getValue();
+
+                        String hex = "";
+                        for (int j = 0; j < ethAddress.size(); j++) {
+                            hex += String.format("%02x", ethAddress.byteAt(j) & 0xFF);
+                        }
+
+                        trezorPublicKey = "0x".concat(hex);
+                        new TezorAsyncTask(this).execute(trezorPublicKey, to, amount);
+                    }
+                }
+            } catch (InvalidProtocolBufferException e) {
+                ToastUtils.showNormal("Failed to retrieve address ".concat(e.getMessage()), Toast.LENGTH_LONG);
+            }
+        }
+    }
+
+    private void sendFromTrezor(String to, String amount, BigInteger noOnce) {
+
+        if (noOnce != null) {
+
+//            new android.support.v7.app.AlertDialog.Builder(this).setTitle("No Once Set")
+//                    .setMessage(noOnce.toString())
+//                    .create()
+//                    .show();
+
+//            String message = "to ".concat(toByteString + "\n from ")
+//                    .concat(trezorPublicKey + "\n weiValue")
+//                    .concat(weiValueByteString.toString() + "\n gas Price ")
+//                    .concat(gasPriceByteString.toString() + "\n gas Limit ")
+//                    .concat(gasLimitByteString.toString() + "\n noOnce ")
+//                    .concat(noOnceByteString.toString());
+
+
+            try {
+//                TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
+//                trezorDevice.sendMessage(req);
+//
+//                TrezorMessage.EthereumTxAck ack = TrezorMessage.EthereumTxAck.newBuilder().build();
+//                trezorDevice.sendMessage(ack);
+
+                BigDecimal weiValue = Convert.toWei(amount, Convert.Unit.ETHER);
+                ByteString toByteString = ByteString.copyFrom(to.getBytes());
+                ByteString weiValueByteString = ByteString.copyFrom(weiValue.toBigInteger().toByteArray());
+                ByteString gasPriceByteString = ByteString.copyFrom(GAS_PRICE.toByteArray());
+                ByteString gasLimitByteString = ByteString.copyFrom(GAS_LIMIT.toByteArray());
+                ByteString noOnceByteString = ByteString.copyFrom(noOnce.toByteArray());
+
+                TrezorMessage.EthereumSignTx.Builder builder = TrezorMessage.EthereumSignTx.newBuilder();
+                builder.clear();
+
+                TrezorMessage.EthereumSignTx ethReq2 = builder
+                        .setTo(toByteString)
+                        .setValue(weiValueByteString)
+                        .setGasLimit(gasLimitByteString)
+                        .setGasPrice(gasPriceByteString)
+                        .setNonce(noOnceByteString)
+                        .setChainId(4) //rinkerby
+//                        .setDataInitialChunk(ByteString.EMPTY)
+//                        .setDataLength(0)
+                        .setTxType(1)
+                        .build();
+
+//                ByteString gasLimit = ethReq2.getGasLimit();
+//                ByteString gasPrice = ethReq2.getGasPrice();
+//                int size = ethReq2.getSerializedSize();
+//                int gasSize = gasLimit.size() + gasPrice.size();
+//                String anotherMessage = "gaslimit : ";
+//                anotherMessage = gasLimit.toStringUtf8().concat("\n gas price : ")
+//                        .concat(gasPrice.toStringUtf8()).concat("\n request size")
+//                        .concat(String.valueOf(size)).concat("\n gas Size : ")
+//                        .concat(String.valueOf(gasSize));
+
+                Message result = trezorDevice.sendMessage(ethReq2);
+//                Iterator<Map.Entry<Descriptors.FieldDescriptor, Object>> it = result.getAllFields().entrySet().iterator();
+//                String aString = "";
+//                while (it.hasNext()){
+//                    Map.Entry<Descriptors.FieldDescriptor, Object> entry = it.next();
+//                    aString = aString.concat(entry.getKey().getFullName()).concat("\n" + entry.getValue().toString());
+//                }
+
+                new android.support.v7.app.AlertDialog.Builder(this).setTitle("Success")
+                        .setMessage(result.toByteString().toStringUtf8())
+                        .create()
+                        .show();
+            }
+            catch (InvalidProtocolBufferException e) {
+                ToastUtils.showNormal("BufferException : ".concat(e.getMessage()), Toast.LENGTH_LONG);
+
+//                ToastUtils.showNormal("BufferException : ".concat(e.getMessage()), Toast.LENGTH_LONG);
+//                new android.support.v7.app.AlertDialog.Builder(this).setTitle("failure")
+//                        .setMessage(message)
+//                        .create()
+//                        .show();
+            }
+        }
+        else{
+            ToastUtils.showNormal("no once is null farrrk", Toast.LENGTH_LONG);
+        }
+    }
+
+    public static class TezorAsyncTask extends AsyncTask<String, String, Exception> {
+        SendActivity context;
+
+        public TezorAsyncTask(SendActivity context){
+            super();
+            this.context = context;
+        }
+
+        @Override
+        protected Exception doInBackground(String... params) {
+
+
+            return doAsyncTrezorThings(params[0], params[1], params[2]);
+        }
+
+        @Override
+        protected void onPostExecute(Exception e) {
+            if(e != null && context != null) {
+                Toast.makeText(context, e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+
+        public Exception doAsyncTrezorThings(String from, String to, String amount) {
+
+            try{
+                Web3j web3j = Web3jFactory.build(new HttpService("https://rinkeby.infura.io/tQmR2iidoG7pjW1hCcCf"));  // defaults to http://localhost:8545/
+
+                EthGetTransactionCount count = web3j.ethGetTransactionCount(from, DefaultBlockParameterName.LATEST).send();
+                BigInteger transCount = count.getTransactionCount();
+                if(transCount.intValue() < 1){
+                    transCount = new BigInteger("1");
+                }
+
+                context.createTrezorTransactionAmoutDialog(to, amount, transCount);
+            }
+            catch (IOException e){
+                ToastUtils.showNormal("IO exception : ".concat(e.getMessage()), Toast.LENGTH_LONG);
+            }
+            return null;
+        }
     }
 }

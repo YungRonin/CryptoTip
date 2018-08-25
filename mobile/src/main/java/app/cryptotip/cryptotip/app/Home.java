@@ -15,7 +15,6 @@ import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.content.res.ResourcesCompat;
 import android.support.v4.widget.DrawerLayout;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.Toolbar;
@@ -82,6 +81,8 @@ import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -223,6 +224,7 @@ public class Home extends AppCompatActivity {
             } catch (WriterException e) {
                 Log.e("fail", "exception " + e);
             }
+
             pubKeyTview.setText(pubKey);
         }
 
@@ -480,9 +482,8 @@ public class Home extends AppCompatActivity {
 
         if(trezorDevice != null){
 
-
-                TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
-                TrezorMessage.EthereumGetAddress ethReq = TrezorMessage.EthereumGetAddress.newBuilder().build();
+            TrezorMessage.Initialize req = TrezorMessage.Initialize.newBuilder().build();
+            TrezorMessage.EthereumGetAddress ethReq = TrezorMessage.EthereumGetAddress.newBuilder().build();
             try {
                 Message resp = trezorDevice.sendMessage(req);
                 if (resp != null) {
@@ -490,38 +491,33 @@ public class Home extends AppCompatActivity {
 
                 }
                 Message ethResp = trezorDevice.sendMessage(ethReq);
-                if (resp != null) {
+                if (ethResp != null) {
                     Map<Descriptors.FieldDescriptor, Object> map = ethResp.getAllFields();
 
                     if(!map.isEmpty()){
-//                        LinkedList<String> keysAndValues = new LinkedList();
-//                        Iterator it = map.entrySet().iterator();
-//                        while (it.hasNext()){
-//                            Map.Entry pair = (Map.Entry)it.next();
-//                            keysAndValues.add(pair.getKey().toString());
-//                            keysAndValues.add(pair.getValue().toString());
-//                        }
-//
-//                        String result ="Result : ";
-//                        for(String value : keysAndValues){
-//                            result = result.concat(", ".concat(value));
-//                        }
-
-                        ByteString ethAddress = (ByteString) map.entrySet().iterator().next().getValue();
-                        byte[] byteArray = ethAddress.toByteArray();
-
-                        String allTheBytes = "0x";
-                        for(byte b : byteArray){
-                            String byteString = Integer.toHexString(b & 0xFF);
-                            allTheBytes = allTheBytes.concat(byteString);
+                        LinkedList<Object> keysAndValues = new LinkedList();
+                        Iterator it = map.entrySet().iterator();
+                        while (it.hasNext()){
+                            Map.Entry pair = (Map.Entry)it.next();
+                            keysAndValues.add(pair.getKey());
+                            keysAndValues.add(pair.getValue());
                         }
 
-                        new AlertDialog.Builder(this).setTitle("Status")
-                                .setMessage(allTheBytes)
-                                .create()
-                                .show();
 
-                        pubKey = allTheBytes;
+                        ByteString ethAddress = (ByteString) map.entrySet().iterator().next().getValue();
+
+                        String hex = "";
+                        for (int j = 0; j < ethAddress.size(); j++) {
+                            hex += String.format("%02x", ethAddress.byteAt(j) & 0xFF);
+                        }
+
+//                        new AlertDialog.Builder(this).setTitle("Status")
+//                                .setMessage(hex)
+//                                .create()
+//                                .show();
+
+                        pubKey = "0x".concat(hex);
+                        refresh();
                     }
                 }
             }
@@ -720,10 +716,10 @@ public class Home extends AppCompatActivity {
         //
 
         private void messageWrite(Message msg) {
+
             int msg_size = msg.getSerializedSize();
             String msg_name = msg.getClass().getSimpleName();
             int msg_id = TrezorMessage.MessageType.valueOf("MessageType_" + msg_name).getNumber();
-            ToastUtils.showNormal(String.format("messageWrite: Got message: %s (%d bytes)", msg_name, msg_size), Toast.LENGTH_LONG);
 
             ByteBuffer data = ByteBuffer.allocate(msg_size + 1024); // 32768);
             data.put((byte) '#');
@@ -741,7 +737,6 @@ public class Home extends AppCompatActivity {
             UsbRequest request = new UsbRequest();
             request.initialize(usbConnection, writeEndpoint);
             int chunks = data.position() / 63;
-            ToastUtils.showNormal(String.format("messageWrite: Writing %d chunks", chunks), Toast.LENGTH_LONG);
 
             data.rewind();
             for (int i = 0; i < chunks; i++) {
@@ -766,7 +761,6 @@ public class Home extends AppCompatActivity {
                 request.queue(buffer, 64);
                 usbConnection.requestWait();
                 byte[] b = buffer.array();
-                ToastUtils.showNormal(String.format("messageRead: Read chunk: %d bytes", b.length), Toast.LENGTH_LONG);
 
                 if (b.length < 9 || b[0] != (byte) '?' || b[1] != (byte) '#' || b[2] != (byte) '#') {
                     if (invalidChunksCounter++ > 5)
@@ -792,7 +786,6 @@ public class Home extends AppCompatActivity {
                 request.queue(buffer, 64);
                 usbConnection.requestWait();
                 byte[] b = buffer.array();
-                ToastUtils.showNormal(String.format("messageRead: Read chunk (cont): %d bytes", b.length), Toast.LENGTH_LONG);
 
                 if (b[0] != (byte) '?') {
                     if (invalidChunksCounter++ > 5)
@@ -804,12 +797,7 @@ public class Home extends AppCompatActivity {
 
             byte[] msgData = Arrays.copyOfRange(data.array(), 0, msg_size);
 
-            ToastUtils.showNormal(String.format("parseMessageFromBytes: Parsing %s (%d bytes):", type, msgData.length), Toast.LENGTH_LONG);
             return parseMessageFromBytes(type, msgData);
         }
-    }
-
-    public TrezorDevice getTrezorDevice() {
-        return trezorDevice;
     }
 }

@@ -18,7 +18,6 @@ import com.gani.lib.ui.view.GTextView;
 
 import org.web3j.crypto.WalletUtils;
 
-import app.cryptotip.cryptotip.app.components.BorderFactory;
 import app.cryptotip.cryptotip.app.components.QrScanner;
 import app.cryptotip.cryptotip.app.view.MyScreenView;
 
