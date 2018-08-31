@@ -707,11 +707,20 @@ public class SendActivity extends GActivity {
 //                TrezorMessage.EthereumTxAck ack = TrezorMessage.EthereumTxAck.newBuilder().build();
 //                trezorDevice.sendMessage(ack);
 
+                String tominuszerox = to.substring(2,to.length());
+
+                int len = tominuszerox.length();
+                byte[] data = new byte[len / 2];
+                for (int i = 0; i < len; i += 2) {
+                    data[i / 2] = (byte) ((Character.digit(tominuszerox.charAt(i), 16) << 4)
+                            + Character.digit(tominuszerox.charAt(i+1), 16));
+                }
+
                 BigDecimal weiValue = Convert.toWei(amount, Convert.Unit.ETHER);
-                ByteString toByteString = ByteString.copyFrom(to.getBytes());
+                ByteString toByteString = ByteString.copyFrom(data);
                 ByteString weiValueByteString = ByteString.copyFrom(weiValue.toBigInteger().toByteArray());
-                ByteString gasPriceByteString = ByteString.copyFrom(GAS_PRICE.toByteArray());
-                ByteString gasLimitByteString = ByteString.copyFrom(GAS_LIMIT.toByteArray());
+                ByteString gasPriceByteString = ByteString.copyFrom(GAS_PRICE.toByteArray());  //BigInteger.valueOf(2500)
+                ByteString gasLimitByteString = ByteString.copyFrom(GAS_LIMIT.toByteArray());  //BigInteger.valueOf(21000)
                 ByteString noOnceByteString = ByteString.copyFrom(noOnce.toByteArray());
 
                 TrezorMessage.EthereumSignTx.Builder builder = TrezorMessage.EthereumSignTx.newBuilder();
@@ -729,6 +738,7 @@ public class SendActivity extends GActivity {
                         .setTxType(1)
                         .build();
 
+
 //                ByteString gasLimit = ethReq2.getGasLimit();
 //                ByteString gasPrice = ethReq2.getGasPrice();
 //                int size = ethReq2.getSerializedSize();
@@ -740,6 +750,9 @@ public class SendActivity extends GActivity {
 //                        .concat(String.valueOf(gasSize));
 
                 Message result = trezorDevice.sendMessage(ethReq2);
+
+//                TrezorMessage.EthereumVerifyMessage mesage2 = TrezorMessage.EthereumVerifyMessage.newBuilder()
+
 //                Iterator<Map.Entry<Descriptors.FieldDescriptor, Object>> it = result.getAllFields().entrySet().iterator();
 //                String aString = "";
 //                while (it.hasNext()){
@@ -748,7 +761,7 @@ public class SendActivity extends GActivity {
 //                }
 
                 new android.support.v7.app.AlertDialog.Builder(this).setTitle("Success")
-                        .setMessage(result.toByteString().toStringUtf8())
+                        .setMessage(result.toByteString().toStringUtf8().concat("somehting concatted"))
                         .create()
                         .show();
             }
@@ -756,10 +769,10 @@ public class SendActivity extends GActivity {
                 ToastUtils.showNormal("BufferException : ".concat(e.getMessage()), Toast.LENGTH_LONG);
 
 //                ToastUtils.showNormal("BufferException : ".concat(e.getMessage()), Toast.LENGTH_LONG);
-//                new android.support.v7.app.AlertDialog.Builder(this).setTitle("failure")
-//                        .setMessage(message)
-//                        .create()
-//                        .show();
+                new android.support.v7.app.AlertDialog.Builder(this).setTitle("failure")
+                        .setMessage(e.getMessage())
+                        .create()
+                        .show();
             }
         }
         else{
