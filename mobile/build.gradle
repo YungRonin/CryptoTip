@@ -33,7 +33,7 @@ dependencies {
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
     implementation 'org.web3j:core:3.3.1-android'
-    implementation 'com.google.zxing:core:3.3.0'
+    implementation 'com.google.zxing:core:3.3.2'
     implementation 'android.arch.persistence.room:runtime:1.1.1'
     annotationProcessor 'android.arch.persistence.room:compiler:1.1.1'
     implementation 'com.github.hgani.ganilib-android:ganilib-core:5af108d899064ed3feb7dc2ab5fb22071055798f'
@@ -41,5 +41,5 @@ dependencies {
     implementation('com.mikepenz:materialdrawer:6.0.9@aar') {
         transitive = true
     }
-    //    compile project(':ganilib-core')
+    implementation project(':bitlib')
 }
