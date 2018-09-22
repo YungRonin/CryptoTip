@@ -50,7 +50,7 @@
         android:layout_alignParentBottom="true"
         android:padding="@dimen/padding_medium">
         <android.support.v7.widget.CardView
-            android:id="@+id/trezor_button_card_view"
+            android:id="@+id/ledger_button_card_view"
             app:cardUseCompatPadding="true"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -64,8 +64,8 @@
                 <com.gani.lib.ui.view.GTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:id="@+id/trezor_button"
-                    android:text="Connect To Trezor"
+                    android:id="@+id/ledger_button"
+                    android:text="Connect To Ledger"
                     android:padding="@dimen/padding_small"/>
             </FrameLayout>
         </android.support.v7.widget.CardView>
